@@ -11,6 +11,9 @@ set(SDKCONFIG ${CMAKE_BINARY_DIR}/sdkconfig)
 set(SDKCONFIG_DEFAULTS
 	${CMAKE_SOURCE_DIR}/sdkconfig.defaults
 	)
+set(EXTRA_COMPONENT_DIRS
+	${CMAKE_CURRENT_LIST_DIR}/../../components/
+	)
 
 set(COMPONENTS main esptool_py)
-project(esp32-erpc-demo)
+project(hello_world)

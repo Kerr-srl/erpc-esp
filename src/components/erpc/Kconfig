@@ -1,0 +1,29 @@
+menu "ESP32-eRPC"
+
+    choice ERPC_THREADS
+        prompt "Threading model used by eRPC"
+        default ERPC_THREADS_PTHREADS
+        config ERPC_THREADS_NONE
+            bool
+            prompt "No threading"
+        config ERPC_THREADS_PTHREADS
+            bool
+            prompt "Pthreads"
+    endchoice # ERPC_THREADS
+
+    config ERPC_DEFAULT_BUFFER_SIZE
+        int "Size of each message"
+        range 1 4294967295
+        default 256
+        help
+            Size of buffers allocated by one of MessageBufferFactory. In
+            other words size of each message.
+
+    config ERPC_DEFAULT_BUFFERS_COUNT
+        int "Number of concurrent messages"
+        range 1 4294967295
+        default 2
+        help
+            Number of message buffers
+
+endmenu # ESP32-eRPC

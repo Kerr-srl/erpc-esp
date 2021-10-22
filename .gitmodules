@@ -1,0 +1,3 @@
+[submodule "external/erpc"]
+	path = external/erpc
+	url = git@github.com:Kerr-srl/erpc.git
