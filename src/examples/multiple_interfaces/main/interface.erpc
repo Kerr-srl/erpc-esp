@@ -1,0 +1,4 @@
+program multi_interface
+
+import "farewell/farewell.erpc"
+import "greet/greet.erpc"

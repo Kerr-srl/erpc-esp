@@ -1,0 +1,9 @@
+@group(target)
+interface farewell_target {
+    say_bye_to_target(string name) -> string
+}
+
+@group(host)
+interface farewell_host {
+    say_bye_to_host(string name) -> string
+}

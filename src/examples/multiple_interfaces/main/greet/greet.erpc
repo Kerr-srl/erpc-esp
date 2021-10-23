@@ -1,0 +1,9 @@
+@group(target)
+interface greet_target {
+    say_hello_to_target(string name) -> string
+}
+
+@group(host)
+interface greet_host {
+    say_hello_to_host(string name) -> string
+}
