@@ -17,7 +17,7 @@
 
 #include <string.h>
 
-char *say_hello_to_target(const char *name) {
+char *say_hello_to_target(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
 	char *response = erpc_malloc(len);
 	memset(response, 0, len);
@@ -35,11 +35,13 @@ void server_task(void *params) {
 }
 
 void client_task(void *params) {
+	uint32_t i = 0;
 	while (1) {
 		vTaskDelay(pdMS_TO_TICKS(5000));
 		ESP_LOGI(TAG, "Calling host");
-		char *response = say_hello_to_host("ESP32");
+		char *response = say_hello_to_host("ESP32", i);
 		ESP_LOGI(TAG, "Host response: \"%s\"", response);
+		++i;
 	}
 	vTaskDelete(NULL);
 }

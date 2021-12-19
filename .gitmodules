@@ -1,3 +1,6 @@
 [submodule "external/erpc"]
 	path = external/erpc
 	url = https://github.com/Kerr-srl/erpc.git
+[submodule "external/tinyproto"]
+	path = external/tinyproto
+	url = https://github.com/Kerr-srl/tinyproto.git

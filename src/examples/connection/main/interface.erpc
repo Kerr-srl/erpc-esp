@@ -1,4 +1,4 @@
-program hello_world
+program hello_world_with_connection
 
 /*
  * Services of the firmware
