@@ -12,7 +12,7 @@ set(ERPC_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../external/erpc)
 execute_process(COMMAND git submodule update --init --progress ${ERPC_DIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 list(APPEND CMAKE_MODULE_PATH "${ERPC_DIR}/cmake")
-find_package(ERPC REQUIRED COMPONENTS erpcgen erpcsniffer)
+find_package(ERPC REQUIRED COMPONENTS erpcgen)
 
 add_library(eRPCConfig INTERFACE)
 
