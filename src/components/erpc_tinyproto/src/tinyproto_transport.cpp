@@ -55,8 +55,8 @@ void TinyprotoTransport::rx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	while (1) {
 		pthis->tinyproto_.run_rx(pthis->read_func_);
-		// to avoid starving other tasks
-		vTaskDelay(1);
+		// we don't explicitly yield as we do in tx_task, since we expect the
+		// user provided read_func_ to "block for a while".
 	}
 	vTaskDelete(NULL);
 }
@@ -64,9 +64,14 @@ void TinyprotoTransport::rx_task(void *user_data) {
 void TinyprotoTransport::tx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	while (1) {
-		pthis->tinyproto_.run_tx(pthis->write_func_);
-		// to avoid starving other tasks
-		vTaskDelay(1);
+		int sent_bytes =
+			tiny_fd_run_tx(pthis->tinyproto_.getHandle(), pthis->write_func_);
+		if (sent_bytes == 0) {
+			// to avoid starving other tasks. In particular to ensure that the
+			// watchdog is triggered See
+			// https://github.com/espressif/esp-idf/issues/1646
+			vTaskDelay(1);
+		}
 	}
 	vTaskDelete(NULL);
 }

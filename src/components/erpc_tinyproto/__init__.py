@@ -86,10 +86,6 @@ class TinyprotoTransport(erpc.transport.FramedTransport):
     def tx_thread(this):
         while True:
             this._proto.run_tx(this._write_func)
-            # Yield control
-            # See https://stackoverflow.com/questions/787803/how-does-a-threading-thread-yield-the-rest-of-its-quantum-in-python
-            # Seems that time.sleep(0) is not enough in my case
-            time.sleep(0.0001)
 
     def _base_send(self, data):
         ret = self._proto.send(data)

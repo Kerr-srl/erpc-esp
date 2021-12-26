@@ -69,7 +69,6 @@ def client_thread_fn(client_manager: erpc.client.ClientManager, role: Role):
             response = client.say_hello_to_target("Host", i)
             i = i + 1
             log.info(f"Target response: {response}")
-            time.sleep(1)
     elif role == Role.target:
         client = host.client.hello_world_hostClient(client_manager)
         i = 0
@@ -78,7 +77,6 @@ def client_thread_fn(client_manager: erpc.client.ClientManager, role: Role):
             response = client.say_hello_to_host("Target", i)
             i = i + 1
             log.info(f"Host response: {response}")
-            time.sleep(1)
     else:
         assert False
 

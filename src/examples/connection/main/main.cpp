@@ -39,7 +39,6 @@ void server_task(void *params) {
 void client_task(void *params) {
 	uint32_t i = 0;
 	while (1) {
-		vTaskDelay(pdMS_TO_TICKS(1000));
 		ESP_LOGI(TAG, "Calling host");
 		char *response = say_hello_to_host("ESP32", i);
 		ESP_LOGI(TAG, "Host response: \"%s\"", response);
