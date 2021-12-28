@@ -1,6 +1,11 @@
-# Connection-oriented hello world
+# eRPC hello world using Tinyproto as transport
 
 Example of connection-oriented communication over UART using Tinyproto
+
+## Features
+
+* Connection establishment
+* ESP32 log coexistence, which means that there is no need to wire an additional UART. (Although it's pretty ugly)
 
 ## Usage
 
