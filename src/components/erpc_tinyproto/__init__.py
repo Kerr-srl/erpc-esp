@@ -18,7 +18,7 @@ class TinyprotoTimeoutError(TinyprotoError):
     pass
 
 
-class TinyprotoTransport(erpc.transport.FramedTransport):
+class TinyprotoTransport(erpc.transport.Transport):
     def __init__(self, read_func, write_func, send_timeout: float = 0.5, receive_timeout: float = 0.5, **kwargs):
         """
         TinyprotoTransport constructor
@@ -38,14 +38,8 @@ class TinyprotoTransport(erpc.transport.FramedTransport):
         self._receive_timeout = receive_timeout
 
         def on_read(data):
-            for byte in data:
-                self._rx_fifo.put(byte, block=True)
+            self._rx_fifo.put(data, block=True)
 
-        def on_send(data):
-            with self._sent_event:
-                self._sent_event.notify()
-
-        self._proto.on_send = on_send
         self._proto.on_read = on_read
 
     def connect(self, timeout: float = None):
@@ -87,7 +81,7 @@ class TinyprotoTransport(erpc.transport.FramedTransport):
         while True:
             this._proto.run_tx(this._write_func)
 
-    def _base_send(self, data):
+    def send(self, data):
         ret = self._proto.send(data)
         if ret != 0:
             if ret == -1:
@@ -101,23 +95,6 @@ class TinyprotoTransport(erpc.transport.FramedTransport):
                 raise TinyprotoError("Data too large")
             else:
                 assert False
-        with self._sent_event:
-            sent = self._sent_event.wait(timeout=self._send_timeout)
-            if not sent:
-                raise TinyprotoTimeoutError("Frame send timeout")
 
-    def _base_receive(self, count):
-        bytes = []
-        timeout = self._receive_timeout
-        last = time.time()
-        while count > 0:
-            try:
-                byte = self._rx_fifo.get(block=True, timeout=timeout)
-            except queue.Empty:
-                raise TinyprotoTimeoutError("Frame receive timeout")
-            timeout -= (time.time() - last)
-            last = time.time()
-            bytes.append(byte)
-            count -= 1
-
-        return bytearray(bytes)
+    def receive(self):
+        return self._rx_fifo.get(block=True, timeout=self._receive_timeout)

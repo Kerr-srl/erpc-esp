@@ -18,5 +18,5 @@ idf.py build
 idf.py flash
 
 # Communicate with the target via UART (e.g. at /dev/ttyUSB0) using the host-side Python script
-python main/main.py -p /dev/ttyUSB0
+python main/main.py -p /dev/ttyUSB0 --bd 2000000
 ```

@@ -24,7 +24,6 @@ erpc_status_t TinyprotoTransport::connect(TickType_t timeout_ticks) {
 	erpc_status_t status = kErpcStatus_Success;
 
 	this->tinyproto_.setReceiveCallback(TinyprotoTransport::receive_cb);
-	this->tinyproto_.setSendCallback(TinyprotoTransport::sent_cb);
 	this->tinyproto_.setUserData(this);
 
 	// This is the default used by the Python binding
@@ -79,35 +78,30 @@ void TinyprotoTransport::tx_task(void *user_data) {
 void TinyprotoTransport::receive_cb(void *user_data, tinyproto::IPacket &pkt) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	size_t sent =
-		xStreamBufferSend(pthis->rx_fifo.handle, pkt.data(), pkt.size(), 0);
+		xMessageBufferSend(pthis->rx_fifo.handle, pkt.data(), pkt.size(), 0);
 
 	assert(sent == pkt.size());
 }
 
-void TinyprotoTransport::sent_cb(void *user_data, tinyproto::IPacket &pkt) {
-	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
-	xSemaphoreGive(pthis->sent_semaphore.handle);
-}
-
-erpc_status_t TinyprotoTransport::underlyingSend(const uint8_t *data,
-												 uint32_t size) {
-	int ret = this->tinyproto_.write((const char *)data, size);
+erpc_status_t TinyprotoTransport::send(MessageBuffer *message) {
+	int ret = this->tinyproto_.write((const char *)message->get(),
+									 message->getUsed());
 	if (ret < 0) {
 		return kErpcStatus_SendFailed;
 	}
-	if (xSemaphoreTake(this->sent_semaphore.handle, this->send_timeout_) !=
-		pdTRUE) {
-		return kErpcStatus_Timeout;
-	}
 	return kErpcStatus_Success;
 }
-erpc_status_t TinyprotoTransport::underlyingReceive(uint8_t *data,
-													uint32_t size) {
-	xStreamBufferSetTriggerLevel(this->rx_fifo.handle, size);
-	size_t received = xStreamBufferReceive(this->rx_fifo.handle, data, size,
-										   this->receive_timeout_);
-	if (received == size) {
+erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
+	size_t received =
+		xMessageBufferReceive(this->rx_fifo.handle, message->get(),
+							  message->getLength(), this->receive_timeout_);
+	if (received != 0) {
+		message->setUsed(received);
 		return kErpcStatus_Success;
 	}
 	return kErpcStatus_Timeout;
+}
+
+bool TinyprotoTransport::hasMessage(void) {
+	return !xMessageBufferIsEmpty(this->rx_fifo.handle);
 }

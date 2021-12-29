@@ -19,8 +19,8 @@
 #include "erpc_framed_transport.h"
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/message_buffer.h"
 #include "freertos/semphr.h"
-#include "freertos/stream_buffer.h"
 #include "freertos/task.h"
 
 #include "TinyProtocolFd.h"
@@ -33,7 +33,7 @@ namespace esp {
 /*!
  * @brief Tinyproto transport layer
  */
-class TinyprotoTransport : public FramedTransport {
+class TinyprotoTransport : public Transport {
   public:
 	/*!
 	 * @brief Constructor.
@@ -45,11 +45,9 @@ class TinyprotoTransport : public FramedTransport {
 		: tinyproto_(buffer, buffer_size), write_func_(write_func),
 		  read_func_(read_func), send_timeout_(send_timeout),
 		  receive_timeout_(receive_timeout) {
-		this->sent_semaphore.handle =
-			xSemaphoreCreateBinaryStatic(&this->sent_semaphore.buf);
-		this->rx_fifo.handle =
-			xStreamBufferCreateStatic(sizeof(this->rx_fifo.buffer), 1,
-									  this->rx_fifo.buffer, &this->rx_fifo.buf);
+		this->rx_fifo.handle = xMessageBufferCreateStatic(
+			sizeof(this->rx_fifo.buffer) - 1, this->rx_fifo.buffer,
+			&this->rx_fifo.buf);
 	}
 
 	/*!
@@ -78,37 +76,30 @@ class TinyprotoTransport : public FramedTransport {
 	/*!
 	 * @brief Write data to the Tinyproto connection.
 	 *
-	 * @param[in] data Buffer to send.
-	 * @param[in] size Size of data to send.
+	 * @param[in] message Message to send.
 	 *
 	 * @retval kErpcStatus_ReceiveFailed Serial failed to receive data.
 	 * @retval kErpcStatus_Success Successfully received all data.
 	 */
-	virtual erpc_status_t underlyingSend(const uint8_t *data,
-										 uint32_t size) override;
+	virtual erpc_status_t send(MessageBuffer *message) override;
 
 	/*!
 	 * @brief Read data from the Tinyproto connection.
 	 *
-	 * @param[inout] data Preallocated buffer for receiving data.
-	 * @param[in] size Size of data to read.
+	 * @param[in] message Message to receive.
 	 *
 	 * @retval kErpcStatus_ReceiveFailed Serial failed to receive data.
 	 * @retval kErpcStatus_Success Successfully received all data.
 	 */
-	virtual erpc_status_t underlyingReceive(uint8_t *data,
-											uint32_t size) override;
+	virtual erpc_status_t receive(MessageBuffer *message) override;
+	virtual bool hasMessage(void) override;
+
 	static void rx_task(void *user_data);
 	static void tx_task(void *user_data);
 	/**
 	 * Tinyproto callback used when application data has been received
 	 */
 	static void receive_cb(void *user_data, tinyproto::IPacket &pkt);
-	/**
-	 * Tinyproto callback used when application data has been successfully
-	 * (reliably) sent
-	 */
-	static void sent_cb(void *user_data, tinyproto::IPacket &pkt);
 
 	/**
 	 * Full-duplex Tinyproto instance
@@ -150,20 +141,12 @@ class TinyprotoTransport : public FramedTransport {
 	 */
 	TickType_t receive_timeout_;
 	/**
-	 * Semaphore used to notify to the underlyingSend function that a Tinyproto
-	 * FD frame has been sent.
-	 */
-	struct {
-		StaticSemaphore_t buf;
-		SemaphoreHandle_t handle;
-	} sent_semaphore;
-	/**
 	 * FIFO that contains data that received via receive_cb (called by
-	 * Tinyproto) and that underlyingReceive waits.
+	 * Tinyproto) and that receive waits.
 	 */
 	struct {
-		StaticStreamBuffer_t buf;
-		StreamBufferHandle_t handle;
+		StaticMessageBuffer_t buf;
+		MessageBufferHandle_t handle;
 		uint8_t buffer[256];
 	} rx_fifo;
 };

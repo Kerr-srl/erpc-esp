@@ -69,7 +69,7 @@ void app_main() {
 		},
 		[](void *pdata, void *buffer, int size) {
 			return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size,
-								   pdMS_TO_TICKS(10));
+								   pdMS_TO_TICKS(5));
 		},
 		pdMS_TO_TICKS(10000), pdMS_TO_TICKS(10000));
 	ESP_LOGI(TAG, "Connection established");
