@@ -11,6 +11,11 @@ Limitations:
 
 * Limitations: limited throughput. Need more investigation on how to improve this aspect.
 
+## CMake setup
+
+Ensure that the `tinyproto` submodule has been downloaded.
+Then add the directory of the `tinyproto` submodule to `EXTRA_COMPONENT_DIRS`
+
 ## Python dependencies installation
 
 This component provides also the tinyproto-based transport as Python binding.
