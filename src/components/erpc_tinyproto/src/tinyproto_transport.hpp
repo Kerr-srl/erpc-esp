@@ -16,6 +16,8 @@
 #ifndef ERPC_TINYPROTO_TRANSPORT_HPP_HPP_
 #define ERPC_TINYPROTO_TRANSPORT_HPP_HPP_
 
+#include "erpc_esp_tinyproto_transport_setup.h"
+
 #include "erpc_framed_transport.h"
 
 #include "freertos/FreeRTOS.h"
@@ -40,11 +42,9 @@ class TinyprotoTransport : public Transport {
 	 */
 	TinyprotoTransport(void *buffer, size_t buffer_size,
 					   write_block_cb_t write_func, read_block_cb_t read_func,
-					   TickType_t send_timeout = pdMS_TO_TICKS(500),
-					   TickType_t receive_timeout = pdMS_TO_TICKS(500))
+					   const erpc_esp_transport_tinyproto_config &config)
 		: tinyproto_(buffer, buffer_size), write_func_(write_func),
-		  read_func_(read_func), send_timeout_(send_timeout),
-		  receive_timeout_(receive_timeout) {
+		  read_func_(read_func), config_(config) {
 		this->rx_fifo.handle = xMessageBufferCreateStatic(
 			sizeof(this->rx_fifo.buffer) - 1, this->rx_fifo.buffer,
 			&this->rx_fifo.buf);
@@ -53,15 +53,13 @@ class TinyprotoTransport : public Transport {
 	/*!
 	 * @brief This function will establish connection with the other side
 	 *
-	 * \param [in] timeout_ticks connetion timeout in FreeRTOS ticks
-	 *
 	 * @retval #kErpcStatus_Success When creating host was successful or client
 	 * connected successfully.
 	 * @retval #kErpcStatus_UnknownName Host name resolution failed.
 	 * @retval #kErpcStatus_ConnectionFailure Connecting to the specified host
 	 * failed.
 	 */
-	erpc_status_t connect(TickType_t timeout_ticks = portMAX_DELAY);
+	erpc_status_t connect();
 
 	/*!
 	 * @brief This function disconnects with the other side.
@@ -133,13 +131,9 @@ class TinyprotoTransport : public Transport {
 	 */
 	protocol_task tx_task_;
 	/**
-	 * Underlying send timeout
+	 * Configuration
 	 */
-	TickType_t send_timeout_;
-	/**
-	 * Underlying receive timeout
-	 */
-	TickType_t receive_timeout_;
+	erpc_esp_transport_tinyproto_config config_;
 	/**
 	 * FIFO that contains data that received via receive_cb (called by
 	 * Tinyproto) and that receive waits.

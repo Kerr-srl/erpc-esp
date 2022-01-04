@@ -20,23 +20,25 @@
 
 using namespace erpc::esp;
 
-erpc_status_t TinyprotoTransport::connect(TickType_t timeout_ticks) {
+erpc_status_t TinyprotoTransport::connect() {
 	erpc_status_t status = kErpcStatus_Success;
 
 	this->tinyproto_.setReceiveCallback(TinyprotoTransport::receive_cb);
 	this->tinyproto_.setUserData(this);
+	this->tinyproto_.setSendTimeout(this->config_.send_timeout);
 
 	// This is the default used by the Python binding
 	this->tinyproto_.enableCrc16();
 
 	this->tinyproto_.begin();
 	xTaskCreateStatic(this->rx_task, "TinyprotoRx",
-					  sizeof(this->rx_task_.stack), this, 1,
+					  sizeof(this->rx_task_.stack), this, this->config_.rx_task_priority,
 					  this->rx_task_.stack, &this->rx_task_.buffer);
 	xTaskCreateStatic(this->tx_task, "TinyprotoTx",
-					  sizeof(this->tx_task_.stack), this, 1,
+					  sizeof(this->tx_task_.stack), this, this->config_.tx_task_priority,
 					  this->tx_task_.stack, &this->tx_task_.buffer);
 
+	TickType_t timeout_ticks = this->config_.connect_timeout;
 	TickType_t polling_rate = pdMS_TO_TICKS(10);
 	while (tiny_fd_get_status(this->tinyproto_.getHandle()) != 0) {
 		vTaskDelay(polling_rate);
@@ -94,7 +96,7 @@ erpc_status_t TinyprotoTransport::send(MessageBuffer *message) {
 erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 	size_t received =
 		xMessageBufferReceive(this->rx_fifo.handle, message->get(),
-							  message->getLength(), this->receive_timeout_);
+							  message->getLength(), this->config_.receive_timeout);
 	if (received != 0) {
 		message->setUsed(received);
 		return kErpcStatus_Success;

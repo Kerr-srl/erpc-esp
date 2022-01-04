@@ -20,7 +20,7 @@
 
 char *say_hello_to_target(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
-	char *response = static_cast<char *>(erpc_malloc(len));
+	char *response = (char *)(erpc_malloc(len));
 	memset(response, 0, len);
 	strcat(response, "Hello ");
 	strcat(response, name);
@@ -56,22 +56,29 @@ static void client_error(erpc_status_t err, uint32_t functionID) {
 
 static uint8_t buffer[1000];
 
-extern "C" {
+static int tinyproto_write_fn(void *pdata, const void *buffer, int size) {
+	return uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size);
+}
+static int tinyproto_read_fn(void *pdata, void *buffer, int size) {
+	return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size,
+						   pdMS_TO_TICKS(5));
+}
+
+static struct erpc_esp_transport_tinyproto_config tinyproto_config =
+	ERPC_ESP_TRANSPORT_TINYPROTO_CONFIG_DEFAULT();
+
 void app_main() {
 	ESP_LOGD(TAG, "Initializing UART transport");
 
 	ESP_ERROR_CHECK(uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 1000, 1000,
 										100, NULL, 0));
+
+	tinyproto_config.send_timeout = pdMS_TO_TICKS(10000);
+	tinyproto_config.receive_timeout = pdMS_TO_TICKS(10000);
 	erpc_transport_t transport = erpc_esp_transport_tinyproto_init(
-		buffer, sizeof(buffer),
-		[](void *pdata, const void *buffer, int size) {
-			return uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size);
-		},
-		[](void *pdata, void *buffer, int size) {
-			return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size,
-								   pdMS_TO_TICKS(5));
-		},
-		pdMS_TO_TICKS(10000), pdMS_TO_TICKS(10000));
+		buffer, sizeof(buffer), tinyproto_write_fn, tinyproto_read_fn,
+		&tinyproto_config);
+
 	ESP_LOGI(TAG, "Connection established");
 	erpc_mbf_t message_buffer_factory = erpc_mbf_static_init();
 	erpc_transport_t arbitrator =
@@ -84,5 +91,4 @@ void app_main() {
 
 	xTaskCreate(server_task, "server", 0x1000, NULL, 1, NULL);
 	xTaskCreate(client_task, "client", 0x1000, NULL, 1, NULL);
-}
 }
