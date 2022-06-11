@@ -29,6 +29,11 @@ target_compile_definitions(eRPCConfig
   ERPC_THREADS=${ERPC_THREADS}
   ERPC_DEFAULT_BUFFER_SIZE=${CONFIG_ERPC_DEFAULT_BUFFER_SIZE}
   ERPC_DEFAULT_BUFFERS_COUNT=${CONFIG_ERPC_DEFAULT_BUFFERS_COUNT}
+  # Force dynamic allocation policy
+  # Static allocation policy is not fully supported yet.
+  # See https://github.com/EmbeddedRPC/erpc#known-issues-and-limitations
+  # and https://github.com/EmbeddedRPC/erpc/pull/169#pullrequestreview-760504606
+  ERPC_ALLOCATION_POLICY=ERPC_ALLOCATION_POLICY_DYNAMIC
   #ERPC_NOEXCEPT=${CONFIG_ERPC_NOEXCEPT}
   #ERPC_NESTED_CALLS=${CONFIG_ERPC_NESTED_CALLS}
   #ERPC_NESTED_CALLS_DETECTION=${CONFIG_ERPC_NESTED_CALLS_DETECTION}
