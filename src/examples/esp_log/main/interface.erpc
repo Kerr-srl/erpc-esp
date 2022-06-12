@@ -1,0 +1,25 @@
+program hello_world
+
+/*
+ * Services of the firmware
+ */
+@group(target)
+interface hello_world_target {
+    /**
+     * Called by host to confirm connection
+     */
+    oneway connect_ack()
+    say_hello_to_target(string name, uint32 i) -> string
+}
+
+/*
+ * Services of the host
+ */
+@group(host)
+interface hello_world_host {
+    /**
+     * Called by target to connect to host
+     */
+    oneway connect()
+    say_hello_to_host(string name, uint32 i) -> string
+}

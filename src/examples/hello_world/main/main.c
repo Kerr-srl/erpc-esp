@@ -27,22 +27,25 @@
 #if HOST
 char *say_hello_to_host(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
+	// NOTE: memory leak
 	char *response = erpc_malloc(len);
 	memset(response, 0, len);
 	strcat(response, "Hello ");
 	strcat(response, name);
-	ESP_LOGI(TAG, "Received call from target. Responding with \"%s\"",
+	ESP_LOGI(TAG, "Received [%u]call from target. Responding with \"%s\"", ith,
 			 response);
 	return response;
 }
 #else
 char *say_hello_to_target(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
+	// NOTE: memory leak
 	char *response = erpc_malloc(len);
 	memset(response, 0, len);
 	strcat(response, "Hello ");
 	strcat(response, name);
-	ESP_LOGI(TAG, "Received call from host. Responding with \"%s\"", response);
+	ESP_LOGI(TAG, "Received [%u]th call from host. Responding with \"%s\"", ith,
+			 response);
 	return response;
 }
 #endif
@@ -56,8 +59,8 @@ void server_task(void *params) {
 
 void client_task(void *params) {
 	uint32_t i = 0;
+	vTaskDelay(pdMS_TO_TICKS(1000));
 	while (1) {
-		vTaskDelay(pdMS_TO_TICKS(1000));
 #if HOST
 		ESP_LOGI(TAG, "Calling target");
 		char *response = say_hello_to_target("ESP32 host", i);
@@ -94,6 +97,6 @@ void app_main() {
 	erpc_add_service_to_server(create_hello_world_target_service());
 #endif
 
-	xTaskCreate(server_task, "server", 0x1000, NULL, 2, NULL);
+	xTaskCreate(server_task, "server", 0x1000, NULL, 3, NULL);
 	xTaskCreate(client_task, "client", 0x1000, NULL, 2, NULL);
 }

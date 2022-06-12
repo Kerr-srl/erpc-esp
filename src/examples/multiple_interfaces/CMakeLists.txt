@@ -12,7 +12,7 @@ set(SDKCONFIG_DEFAULTS
 	${CMAKE_SOURCE_DIR}/sdkconfig.defaults
 	)
 set(EXTRA_COMPONENT_DIRS
-	${CMAKE_CURRENT_LIST_DIR}/../../components/
+	${CMAKE_CURRENT_LIST_DIR}/../../erpc_esp/
 	)
 
 set(COMPONENTS main esptool_py)

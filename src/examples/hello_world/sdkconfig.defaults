@@ -1,5 +1,3 @@
-CONFIG_ERPC_DEFAULT_BUFFERS_COUNT=8
-
 # Print and halt.
 # Print and reboot is not handy to work with.
 CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT=y

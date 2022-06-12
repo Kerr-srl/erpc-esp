@@ -16,7 +16,7 @@ set(TINYPROTO_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../external/tinyproto/)
 execute_process(COMMAND git submodule update --init --progress ${TINYPROTO_DIR}
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 set(EXTRA_COMPONENT_DIRS
-	${CMAKE_CURRENT_LIST_DIR}/../../components/
+	${CMAKE_CURRENT_LIST_DIR}/../../erpc_esp/
 	${TINYPROTO_DIR}
 	)
 
