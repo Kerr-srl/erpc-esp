@@ -4,13 +4,17 @@ import threading
 
 import IPython
 from traitlets.config.loader import Config
-from common import add_path
+import common
 
 CTRL_E = "\x05"
 CMD_IPYTHON = 20
 
 if __name__ == "__main__":
-    with add_path(os.path.join(os.environ["IDF_PATH"], "tools")):
+    args = common.parse_extension_args()
+
+    hide_erpc = args.hide_erpc
+
+    with common.idf_monitor_modules():
 
         import idf_monitor
         import idf_monitor_base.constants as constants

@@ -27,7 +27,6 @@
 #if HOST
 char *say_hello_to_host(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
-	// NOTE: memory leak
 	char *response = erpc_malloc(len);
 	memset(response, 0, len);
 	strcat(response, "Hello ");
@@ -39,7 +38,6 @@ char *say_hello_to_host(const char *name, uint32_t ith) {
 #else
 char *say_hello_to_target(const char *name, uint32_t ith) {
 	size_t len = strlen("Hello ") + strlen(name) + 1;
-	// NOTE: memory leak
 	char *response = erpc_malloc(len);
 	memset(response, 0, len);
 	strcat(response, "Hello ");
@@ -70,6 +68,7 @@ void client_task(void *params) {
 		char *response = say_hello_to_host("ESP32 target", i);
 		ESP_LOGI(TAG, "Host response: \"%s\"", response);
 #endif
+		erpc_free(response);
 		++i;
 	}
 	vTaskDelete(NULL);

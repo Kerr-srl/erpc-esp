@@ -1,12 +1,4 @@
 /**
- * \verbatim
- *                              _  __
- *                             | |/ /
- *                             | ' / ___ _ __ _ __
- *                             |  < / _ \ '__| '__|
- *                             | . \  __/ |  | |
- *                             |_|\_\___|_|  |_|
- * \endverbatim
  * \file		erpc_esp_tinyproto_transport_setup.c
  *
  * \brief		ERPC ESP-IDF TINYPROTO transport setup functions
@@ -73,8 +65,8 @@ struct erpc_esp_transport_tinyproto_config {
 /*!
  * @brief Create an ESP-IDF Tinyproto transport.
  *
- * @param [in] buffer Tinyproto port
- * @param [in] buffer_size
+ * @param [in] buffer Tinyproto reception buffer
+ * @param [in] buffer_size size of the buffer
  * @param [in] write_func low level write function
  * @param [in] read_func low level read function
  * @param [in] config other misc tinyproto configuration

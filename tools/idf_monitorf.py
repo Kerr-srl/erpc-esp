@@ -1,4 +1,3 @@
-import errno
 import os
 import pty
 import queue
@@ -9,13 +8,19 @@ import threading
 import time
 import tty
 
-import serial
-from serial.threaded import ReaderThread, Protocol
+from serial.serialutil import SerialException
 
-from common import add_path
+import common
+
+import erpc_esp.erpc_esp_log as erpc_esp_log
 
 if __name__ == "__main__":
-    with add_path(os.path.join(os.environ["IDF_PATH"], "tools")):
+    args = common.parse_extension_args()
+
+    arg_hide_erpc = args.hide_erpc
+    erpc_esp_log_filter = erpc_esp_log.ErpcEspLogFilter()
+
+    with common.idf_monitor_modules():
 
         import idf_monitor
         import idf_monitor_base.constants as constants
@@ -26,9 +31,15 @@ if __name__ == "__main__":
         class SerialReader(OriginalSerialReader):
             current_serial = None
 
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
+            def start(self):
                 SerialReader.current_serial = self.serial
+                super().start()
+
+            def stop(self):
+                # When the serial reader thread is stopped for any reason
+                # (e.g. flashing). Set this to None
+                SerialReader.current_serial = None
+                super().stop()
 
         idf_monitor.SerialReader = SerialReader
 
@@ -62,7 +73,7 @@ if __name__ == "__main__":
                         except OSError as e:
                             if not stop_event.is_set():
                                 red_print(
-                                    f"Unable to read data to PTS {os.strerror(e.errno)}"
+                                    f"Unable to read data from PTS {os.strerror(e.errno)}"
                                 )
                             break
 
@@ -148,13 +159,22 @@ if __name__ == "__main__":
 
             def get_printer(self):
                 def printer(str):
+                    # Forward everything to PTY
                     self.master_writer_input_queue.put(str)
-                    print(
-                        str.decode("utf-8", errors="replace"),
-                        end="",
-                        file=sys.stderr,
-                        flush=True,
-                    )
+
+                    # Decide whether to print the line to serial monitor
+                    do_print = True
+                    if arg_hide_erpc:
+                        received = erpc_esp_log_filter.feed_line(str)
+                        if received is not None:
+                            do_print = False
+                    if do_print:
+                        print(
+                            str.decode("utf-8", errors="replace"),
+                            end="",
+                            file=sys.stderr,
+                            flush=True,
+                        )
 
                 return printer
 

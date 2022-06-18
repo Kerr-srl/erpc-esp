@@ -14,19 +14,31 @@ def action_extensions(base_actions, project_path):
 
     original_run_tool = serial_ext.run_tool
 
-    calling_monitori = False
-    calling_monitorf = False
+    monitori = {
+        "calling": False,
+        "args": [],
+        "kwargs": {},
+    }
+    monitorf = {
+        "calling": False,
+        "args": [],
+        "kwargs": {},
+    }
 
     def run_tool(tool_name, args, cwd, env=dict(), custom_error_handler=None):
         if tool_name == "idf_monitor":
             assert os.path.basename(args[1]) == "idf_monitor.py"
-            if calling_monitori:
+            if monitori["calling"] == True:
                 idf_monitori = os.path.join(THIS_SCRIPT_DIR, "tools/idf_monitori.py")
                 args[1] = idf_monitori
+                if monitori["kwargs"].get("hide_erpc", False):
+                    args.append("--hide-erpc")
                 original_run_tool("idf_monitori", args, cwd, env, custom_error_handler)
-            elif calling_monitorf:
+            elif monitorf["calling"] == True:
                 idf_monitorf = os.path.join(THIS_SCRIPT_DIR, "tools/idf_monitorf.py")
                 args[1] = idf_monitorf
+                if monitorf["kwargs"].get("hide_erpc", False):
+                    args.append("--hide-erpc")
                 original_run_tool("idf_monitorf", args, cwd, env, custom_error_handler)
         else:
             original_run_tool(tool_name, args, cwd, env, custom_error_handler)
@@ -53,17 +65,36 @@ def action_extensions(base_actions, project_path):
     original_callback = actions["actions"]["monitori"]["callback"]
 
     def monitori_callback(*args, **kwargs):
-        nonlocal calling_monitori
-        calling_monitori = True
+        nonlocal monitori
+        monitori["calling"] = True
+        monitori["args"] = args
+        monitori["kwargs"] = copy.deepcopy(kwargs)
+
+        kwargs.pop("hide_erpc", None)
         original_callback(*args, **kwargs)
-        calling_monitori = False
+        monitori["calling"] = False
 
     def monitorf_callback(*args, **kwargs):
-        nonlocal calling_monitorf
-        calling_monitorf = True
+        nonlocal monitorf
+        monitorf["calling"] = True
+        monitorf["args"] = args
+        monitorf["kwargs"] = copy.deepcopy(kwargs)
+
+        kwargs.pop("hide_erpc", None)
         original_callback(*args, **kwargs)
-        calling_monitorf = False
+
+        monitorf["calling"] = False
+
+    hide_erpc_option = {
+        "names": ["--hide-erpc"],
+        "is_flag": True,
+        "default": False,
+        "help": ("Whether to hide logs that contain eRPC payload"),
+    }
 
     actions["actions"]["monitori"]["callback"] = monitori_callback
+    actions["actions"]["monitori"]["options"].append(hide_erpc_option)
     actions["actions"]["monitorf"]["callback"] = monitorf_callback
+    actions["actions"]["monitorf"]["options"].append(hide_erpc_option)
+
     return actions

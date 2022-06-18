@@ -32,6 +32,7 @@ void client_task(void *params) {
 			ESP_LOGI(TAG, "Calling host");
 			char *response = say_hello_to_host("ESP32");
 			ESP_LOGI(TAG, "Host response: \"%s\"", response);
+			erpc_free(response);
 		}
 
 		vTaskDelay(pdMS_TO_TICKS(1000));
@@ -40,6 +41,7 @@ void client_task(void *params) {
 			ESP_LOGI(TAG, "Calling host");
 			char *response = say_bye_to_host("ESP32");
 			ESP_LOGI(TAG, "Host response: \"%s\"", response);
+			erpc_free(response);
 		}
 	}
 	vTaskDelete(NULL);

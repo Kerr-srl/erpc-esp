@@ -106,11 +106,15 @@ void TinyprotoTransport::tx_task(void *user_data) {
 	vTaskDelete(NULL);
 }
 
+static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+
 void TinyprotoTransport::receive_cb(void *user_data, uint8_t addr,
 									tinyproto::IPacket &pkt) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
+	taskENTER_CRITICAL(&lock);
 	size_t sent =
 		xMessageBufferSend(pthis->rx_fifo.handle, pkt.data(), pkt.size(), 0);
+	taskEXIT_CRITICAL(&lock);
 	assert(sent == pkt.size());
 
 	xEventGroupSetBits(pthis->events.handle, EVENT_STATUS_NEW_FRAME_PENDING);
@@ -143,23 +147,56 @@ erpc_status_t TinyprotoTransport::send(MessageBuffer *message) {
 	return kErpcStatus_Success;
 }
 erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
-	erpc_status_t status = kErpcStatus_Success;
+	/*
+	 * NOTE: for some reason access to the message buffer must be protected
+	 * in critical section.
+	 * Otherwise sometimes even thought xMessageBufferIsEmpty returns false
+	 * the subsequent call to xMessageBufferReceive returns 0 (i.e. zero bytes
+	 * read from the message queue).
+	 * I was able to hit the problem using the esp_log example in this
+	 * repository, which performs a massive number of eRPC communication.
+	 * So the idea is that we can hit the problem we a lot of data is passing
+	 * through the MessageBuffer.
+	 *
+	 * Since xMessageBuffer is by contract single producer single
+	 * consumer, if this `receive` function were called concurrently in multiple
+	 * tasks, then the necessity of using critical sections would make sense,
+	 * as suggested in the [MessageBuffer
+	 * documentation](https://www.freertos.org/RTOS-message-buffer-example.html).
+	 * But I have checked and this "receive" function doesn't seem to be called
+	 * concurrently...
+	 *
+	 * Maybe it's this bug? https://github.com/aws/amazon-freertos/issues/1837
+	 * I tried to apply the proposed workaround, but it doesn't seem to work.
+	 */
 
+	taskENTER_CRITICAL(&lock);
 	if (!xMessageBufferIsEmpty(this->rx_fifo.handle)) {
 		/*
 		 * EVENT_STATUS_NEW_FRAME_PENDING could be set multiple times.
-		 * There could be multiple frames pending...
-		 * So, as long as there is a frame, just read it.
+		 * There could be multiple frames pending.
+		 * So, as long the message buffer is not empty, we simply read it
+		 * and don't wait for the EVENT_STATUS_NEW_FRAME_PENDING event.
 		 */
 		size_t received = xMessageBufferReceive(
 			this->rx_fifo.handle, message->get(), message->getLength(), 0);
+		taskEXIT_CRITICAL(&lock);
 		assert(received != 0);
 		message->setUsed(received);
-	} else if (!(xEventGroupGetBits(this->events.handle) &
-				 EVENT_STATUS_CONNECTED)) {
-		// not connected yet
-		status = kErpcStatus_ConnectionClosed;
+		xEventGroupClearBits(this->events.handle,
+							 EVENT_STATUS_NEW_FRAME_PENDING);
+		return kErpcStatus_Success;
 	} else {
+		taskEXIT_CRITICAL(&lock);
+	}
+
+	if (!(xEventGroupGetBits(this->events.handle) & EVENT_STATUS_CONNECTED)) {
+		// not connected yet
+		return kErpcStatus_ConnectionClosed;
+	}
+
+	{
+		erpc_status_t status = kErpcStatus_Success;
 		/*
 		 * No frame yet. Wait to receive. Once received, the bit
 		 * EVENT_STATUS_NEW_FRAME_PENDING is cleared.
@@ -172,10 +209,17 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 
 		bool event_received = false;
 		if (event & EVENT_STATUS_NEW_FRAME_PENDING) {
-			size_t received = xMessageBufferReceive(
-				this->rx_fifo.handle, message->get(), message->getLength(), 0);
-			assert(received != 0);
-			message->setUsed(received);
+			taskENTER_CRITICAL(&lock);
+			if (!xMessageBufferIsEmpty(this->rx_fifo.handle)) {
+				size_t received =
+					xMessageBufferReceive(this->rx_fifo.handle, message->get(),
+										  message->getLength(), 0);
+				taskEXIT_CRITICAL(&lock);
+				assert(received != 0);
+				message->setUsed(received);
+			} else {
+				taskEXIT_CRITICAL(&lock);
+			}
 
 			event_received = true;
 		}
@@ -198,9 +242,8 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 			// timed out
 			status = kErpcStatus_Timeout;
 		}
+		return status;
 	}
-
-	return status;
 }
 
 bool TinyprotoTransport::hasMessage(void) {

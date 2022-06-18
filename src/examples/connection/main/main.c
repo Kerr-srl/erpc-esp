@@ -112,7 +112,7 @@ static void on_tinyproto_connect_status_change(bool connected) {
 	}
 }
 
-static uint8_t buffer[1000];
+static uint8_t g_tinyproto_rx_buffer[1000];
 
 static int tinyproto_write_fn(void *pdata, const void *buffer, int size) {
 	return uart_write_bytes(RPC_UART_PORT, buffer, size);
@@ -142,7 +142,7 @@ void app_main() {
 	tinyproto_config.on_connect_status_change_cb =
 		on_tinyproto_connect_status_change;
 	erpc_transport_t transport = erpc_esp_transport_tinyproto_init(
-		buffer, sizeof(buffer), tinyproto_write_fn, tinyproto_read_fn,
+		g_tinyproto_rx_buffer, sizeof(g_tinyproto_rx_buffer), tinyproto_write_fn, tinyproto_read_fn,
 		&tinyproto_config);
 
 	bool res = erpc_esp_transport_tinyproto_connect(portMAX_DELAY);

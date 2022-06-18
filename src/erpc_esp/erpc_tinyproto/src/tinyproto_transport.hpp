@@ -116,7 +116,11 @@ class TinyprotoTransport : public Transport {
 	 */
 	struct protocol_task {
 		StaticTask_t buffer;
-		StackType_t stack[2048];
+		/*
+		 * Usually 2K is enough, but sometimes (typically due to logging)
+		 * we hit stack overflow. So let's add another 1K.
+		 */
+		StackType_t stack[2048 + 1024];
 	};
 	/**
 	 * Task that reads and processes incoming data
