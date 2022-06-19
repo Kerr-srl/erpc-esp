@@ -22,11 +22,12 @@ $ idf.py flash monitorf --hide-erpc
 $ python main/main.py -p /dev/pts/1
 ```
 
-Obviously, if you don't need `idf.py monitor`, then you can also you the Python script alone. In such case some other options supported by the Python script may be useful.
+Obviously, if you don't need `idf.py monitor`, then you can also use the Python script alone. In such case some other options supported by the Python script may be useful.
 
 ```bash
 # Communicate with the target via the PTY slave (e.g. /dev/pts/1) using the host-side Python script
 # This example uses 2M as baudrate for the UART console
-# Use the -c to reset the ESP32 on script startup (just like idf.py monitor)
-$ python main/main.py -p /dev/ttyUSB0 -b 2000000 --reset --
+# Use the --reset option to reset the ESP32 on script startup (just like idf.py monitor)
+# Use the --print-logs option to print also ESP-IDF logs 
+$ python main/main.py -p /dev/ttyUSB0 -b 2000000 --reset --print-logs
 ```

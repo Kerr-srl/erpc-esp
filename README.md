@@ -27,8 +27,7 @@ The utilities actions are:
     * Additional options to `idf.py monitor`:
         * `--hide-erpc`: hide eRPC payload logs. See [erpc_esp_log](./src/erpc_esp/erpc_esp_log/).
 * Caveat: the implementation of these two actions are quite hackish, since ESP-IDF doesn't provide good ways to extend existing actions. Tested on:
-
-* ESP-IDF v4.4.1
+    * ESP-IDF v4.4.1
 
 ## Examples
 
