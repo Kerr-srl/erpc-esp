@@ -4,8 +4,8 @@ Example of connection-oriented communication over UART using Tinyproto
 
 ## Usage
 
-Check the documentation of the [erpc](../../components/erpc/README.md) component.
-Check the documentation of the [erpc_tinyproto](../../components/erpc_tinyproto/README.md) component.
+Check the documentation of the [erpc](../../erpc_esp/erpc/README.md) component.
+Check the documentation of the [erpc_tinyproto](../../erpc_esp/erpc_tinyproto/README.md) component.
 
 ### Communication between two ESP32, one as host and one as target
 

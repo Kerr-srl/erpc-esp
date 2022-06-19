@@ -2,7 +2,7 @@
 
 ## Usage
 
-Check the documentation of the [erpc](../../components/erpc/README.md) component.
+Check the documentation of the [erpc](../../erpc_esp/erpc/README.md) component.
 
 ### Communication between ESP32 and PC
 

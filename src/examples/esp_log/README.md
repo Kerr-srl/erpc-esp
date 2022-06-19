@@ -8,8 +8,8 @@ Tested on:
 
 ## Usage
 
-Check the documentation of the [erpc](../../components/erpc/README.md) component.
-Check the documentation of the [erpc_tinyproto](../../components/erpc_tinyproto/README.md) component.
+Check the documentation of the [erpc](../../erpc_esp/erpc/README.md) component.
+Check the documentation of the [erpc_tinyproto](../../erpc_esp/erpc_tinyproto/README.md) component.
 
 ```bash
 # Flash and monitor the firmware on the ESP32 target
