@@ -17,10 +17,10 @@ Assuming that:
 
 ```bash
 # Build, flash and monitor the "host" firmware
-idf.py -Bbuild/host -DHOST=TRUE -p /dev/ttyUSB0 -Bbuild/host flash monitor
+idf.py -Bbuild/host -DHOST=TRUE -p /dev/ttyUSB0 flash monitor
 
 # Build, flash and monitor the "target" firmware
-idf.py -Bbuild/target -DHOST=FALSE -p /dev/ttyUSB1 -Bbuild/target flash monitor
+idf.py -Bbuild/target -DHOST=FALSE -p /dev/ttyUSB1 flash monitor
 ```
 
 You can try to disconnect the UARTs and re-connect. RPC communication should resume on re-connection.

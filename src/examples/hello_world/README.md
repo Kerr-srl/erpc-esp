@@ -26,17 +26,11 @@ Assuming that:
 * "host ESP32" and "target ESP32" are connected via the other UART (the one that is not used for flashing and logging)
 
 ```bash
-# Build and flash the "host" firmware
-idf.py -Bbuild/host build -DHOST=TRUE
-ESPPORT=/dev/ttyUSB0 idf.py -Bbuild/host flash
+# Build, flash and monitor the "host" firmware
+idf.py -Bbuild/host -DHOST=TRUE -p /dev/ttyUSB0 flash monitor
 
-# Build and flash the "target" firmware
-idf.py -Bbuild/target build -DHOST=FALSE
-ESPPORT=/dev/ttyUSB1 idf.py -Bbuild/target flash
-
-# Watch them communicate with each other
-ESPPORT=/dev/ttyUSB0 idf.py -Bbuild/host monitor
-ESPPORT=/dev/ttyUSB1 idf.py -Bbuild/target monitor
+# Build, flash and monitor the "target" firmware
+idf.py -Bbuild/target -DHOST=FALSE -p /dev/ttyUSB1 flash monitor
 ```
 
 ## Problem of connectionless UART communication
