@@ -160,8 +160,8 @@ class StoppableThread(threading.Thread):
 
 
 class _EventFlags(IntFlag):
+    OPENED = auto()
     CONNECTED = auto()
-    CLOSED = auto()
     NEW_FRAME_RX_PENDING = auto()
 
 
@@ -218,6 +218,11 @@ class TinyprotoTransport(erpc.transport.Transport):
             name="TinyprotoTransport TX",
         )
 
+    def open(self):
+        """
+        Open the transport.
+        """
+
         def on_read(data):
             self._event_flags.set_bits(_EventFlags.NEW_FRAME_RX_PENDING)
             self._rx_fifo.put(data, block=True)
@@ -237,19 +242,33 @@ class TinyprotoTransport(erpc.transport.Transport):
         self._rx_thread.start()
         self._tx_thread.start()
 
+        self._event_flags.set_bits(_EventFlags.OPENED)
+
+    def close(self):
+        """
+        Close the transport.
+        """
+        self._event_flags.clear_bits(_EventFlags.OPENED)
+        self._rx_thread.stop()
+        self._tx_thread.stop()
+        self._rx_thread.join()
+        self._tx_thread.join()
+        self._proto.end()
+
     def wait_connected(self, timeout: float = None):
         """
-        Establish connection
+        Wait connection to be established
 
         :param timeout connection timeout in seconds.
         """
+        assert self._event_flags.get_bits() & _EventFlags.OPENED
 
-        event_flags = self._event_flags.wait_bits_set(
-            _EventFlags.CONNECTED | _EventFlags.CLOSED, timeout=timeout
+        event_flags = self._event_flags.wait_bits(
+            _EventFlags.CONNECTED, _EventFlags.OPENED, timeout=timeout
         )
-        if event_flags & _EventFlags.CLOSED:
+        if (event_flags & _EventFlags.OPENED) == 0:
             raise TinyprotoClosedError("Connection failed")
-        elif not (event_flags & _EventFlags.CONNECTED):
+        elif (event_flags & _EventFlags.CONNECTED) == 0:
             raise TinyprotoTimeoutError("Connection failed")
 
     def disconnect(self):
@@ -259,17 +278,9 @@ class TinyprotoTransport(erpc.transport.Transport):
     def connected(self):
         return self._proto.get_status() == 0
 
-    def close(self):
-        self._event_flags.set_bits(_EventFlags.CLOSED)
-        self._rx_thread.stop()
-        self._tx_thread.stop()
-        self._rx_thread.join()
-        self._tx_thread.join()
-        self._proto.end()
-
     def send(self, data):
         event_flags = self._event_flags.get_bits()
-        if event_flags & _EventFlags.CLOSED:
+        if (event_flags & _EventFlags.OPENED) == 0:
             raise TinyprotoClosedError("TX failure")
         if not (event_flags & _EventFlags.CONNECTED):
             raise TinyprotoDisconnectedError("TX failure")
@@ -278,7 +289,7 @@ class TinyprotoTransport(erpc.transport.Transport):
 
         ret = self._proto.send(data)
         if ret != 0:
-            if self._event_flags.get_bits() & _EventFlags.CLOSED:
+            if (self._event_flags.get_bits() & _EventFlags.OPENED) == 0:
                 raise TinyprotoClosedError("TX failure")
             if ret == -1:
                 raise TinyprotoRecoverableError("Send request cancelled")
@@ -299,15 +310,15 @@ class TinyprotoTransport(erpc.transport.Transport):
             except queue.Empty:
                 raise AssertionError("Queue must contain at least one item")
         event_flags = self._event_flags.wait_bits(
-            _EventFlags.NEW_FRAME_RX_PENDING | _EventFlags.CLOSED,
-            _EventFlags.CONNECTED,
+            _EventFlags.NEW_FRAME_RX_PENDING,
+            _EventFlags.CONNECTED | _EventFlags.OPENED,
             timeout=self._receive_timeout,
             # Clear new frame rx pending
             op=lambda flags: flags & ~(_EventFlags.NEW_FRAME_RX_PENDING),
         )
-        if not (event_flags & _EventFlags.CONNECTED):
+        if (event_flags & _EventFlags.CONNECTED) == 0:
             raise TinyprotoDisconnectedError("RX failure")
-        if event_flags & _EventFlags.CLOSED:
+        if (event_flags & _EventFlags.OPENED) == 0:
             raise TinyprotoClosedError("RX failure")
         if event_flags & _EventFlags.NEW_FRAME_RX_PENDING:
             try:

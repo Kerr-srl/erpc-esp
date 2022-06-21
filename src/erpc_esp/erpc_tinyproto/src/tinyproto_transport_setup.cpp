@@ -34,6 +34,13 @@ erpc_transport_t erpc_esp_transport_tinyproto_init(
 	return reinterpret_cast<erpc_transport_t>(s_transport.get());
 }
 
-bool erpc_esp_transport_tinyproto_connect(TickType_t timeout) {
-	return s_transport->connect(timeout) == kErpcStatus_Success;
+void erpc_esp_transport_tinyproto_open(void) {
+	s_transport->open();
+}
+void erpc_esp_transport_tinyproto_close(void) {
+	s_transport->close();
+}
+
+bool erpc_esp_transport_tinyproto_wait_connected(TickType_t timeout) {
+	return s_transport->wait_connected(timeout) == kErpcStatus_Success;
 }

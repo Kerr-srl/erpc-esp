@@ -11,7 +11,7 @@
  *
  * \brief		ERPC ESP-IDF Tinyproto transport class - implementation
  *
- * \copyright	Copyright 2021 Kerr s.r.l. - All Rights Reserved.
+ * \copyright	Copyright 2022 Kerr s.r.l. - All Rights Reserved.
  */
 
 #include "tinyproto_transport.hpp"
@@ -19,12 +19,51 @@
 #include <cassert>
 
 enum event_status {
-	EVENT_STATUS_CONNECTED = 1,
 	/**
-	 * Set on disconnection. Cleared when it has been handled.
+	 * Set on TinyprotoTransport::open.
+	 * Cleared in TinyprotoTransport::close.
+	 * When cleared, TinyprotoTransport::rx_task and TinyprotoTransport::tx_task
+	 * will terminate themselves.
 	 */
-	EVENT_STATUS_DISCONNECTION_EVENT_PENDING = 1 << 1,
-	EVENT_STATUS_NEW_FRAME_PENDING = 1 << 2,
+	EVENT_STATUS_OPENED = 1,
+	/**
+	 * Set on open => closed transition.
+	 * Cleared in TinyprotoTransport::open.
+	 * Mainly used to give blocking functions a way to unblock themselves
+	 * immediately on closure.
+	 */
+	EVENT_STATUS_CLOSED = 1 << 1,
+	/**
+	 * Set when the connection is established and cleared when the connection is
+	 * dropped.
+	 */
+	EVENT_STATUS_CONNECTED = 1 << 2,
+	/**
+	 * Set on connected => disconnected transition.
+	 * Cleared when a new connection is established.
+	 * Mainly used to give blocking functions a way to unblock themselves
+	 * immediately on disconnection.
+	 */
+	EVENT_STATUS_DISCONNECTED = 1 << 3,
+	/**
+	 * Event bit for TinyprotoTransport::receive, which may run in any user
+	 * thread.
+	 * Set when a new frame has been received and enqueued in the
+	 * TinyprotoTransport::rx_fifo
+	 * Cleared by TinyprotoTransport::receive when the new frame is read from
+	 * the message buffer.
+	 */
+	EVENT_STATUS_NEW_FRAME_PENDING = 1 << 4,
+	/**
+	 * Cleared on TinyprotoTransport::open
+	 * Set by TX thread just before its termination.
+	 */
+	EVENT_STATUS_TX_THREAD_CLOSED = 1 << 5,
+	/**
+	 * Cleared on TinyprotoTransport::open
+	 * Set by RX thread just before its termination.
+	 */
+	EVENT_STATUS_RX_THREAD_CLOSED = 1 << 6,
 };
 
 using namespace erpc::esp;
@@ -35,9 +74,9 @@ TinyprotoTransport::TinyprotoTransport(
 	const erpc_esp_transport_tinyproto_config &config)
 	: tinyproto_(buffer, buffer_size), write_func_(write_func),
 	  read_func_(read_func), config_(config) {
-	this->rx_fifo.handle =
-		xMessageBufferCreateStatic(sizeof(this->rx_fifo.buffer) - 1,
-								   this->rx_fifo.buffer, &this->rx_fifo.buf);
+	this->rx_fifo_.handle =
+		xMessageBufferCreateStatic(sizeof(this->rx_fifo_.buffer) - 1,
+								   this->rx_fifo_.buffer, &this->rx_fifo_.buf);
 
 	this->tinyproto_.setConnectEventCallback(TinyprotoTransport::connect_cb);
 	this->tinyproto_.setReceiveCallback(TinyprotoTransport::receive_cb);
@@ -47,8 +86,22 @@ TinyprotoTransport::TinyprotoTransport(
 	// This is the default used by the Python binding
 	this->tinyproto_.enableCrc16();
 
-	this->tinyproto_.begin();
+	{
+		assert(!this->events_.handle);
+		this->events_.handle = xEventGroupCreateStatic(&this->events_.buf);
+		assert(this->events_.handle);
+	}
+}
 
+void TinyprotoTransport::open() {
+	assert(!(xEventGroupGetBits(this->events_.handle) & EVENT_STATUS_OPENED));
+
+	xEventGroupClearBits(this->events_.handle,
+						 EVENT_STATUS_CLOSED | EVENT_STATUS_RX_THREAD_CLOSED |
+							 EVENT_STATUS_TX_THREAD_CLOSED);
+	xEventGroupSetBits(this->events_.handle, EVENT_STATUS_OPENED);
+
+	this->tinyproto_.begin();
 	{
 		TaskHandle_t ret = nullptr;
 		ret = xTaskCreateStatic(this->rx_task, "TinyprotoRx",
@@ -62,19 +115,33 @@ TinyprotoTransport::TinyprotoTransport(
 								this->tx_task_.stack, &this->tx_task_.buffer);
 		assert(ret);
 	}
-	{
-		assert(!this->events.handle);
-		this->events.handle = xEventGroupCreateStatic(&this->events.buf);
-		assert(this->events.handle);
-	}
+}
+void TinyprotoTransport::close() {
+	assert(xEventGroupGetBits(this->events_.handle) & EVENT_STATUS_OPENED);
+
+	xEventGroupClearBits(this->events_.handle, EVENT_STATUS_OPENED);
+	xEventGroupSetBits(this->events_.handle, EVENT_STATUS_CLOSED);
+	// wait until both tx and rx thread have gracefully terminated
+	xEventGroupWaitBits(this->events_.handle,
+						EVENT_STATUS_RX_THREAD_CLOSED |
+							EVENT_STATUS_TX_THREAD_CLOSED,
+						pdFALSE, pdFALSE, portMAX_DELAY);
+	this->tinyproto_.end();
 }
 
-erpc_status_t TinyprotoTransport::connect(TickType_t timeout) {
+erpc_status_t TinyprotoTransport::wait_connected(TickType_t timeout) {
 	erpc_status_t status = kErpcStatus_Success;
+	assert(xEventGroupGetBits(this->events_.handle) & EVENT_STATUS_OPENED);
 
-	auto ret = xEventGroupWaitBits(this->events.handle, EVENT_STATUS_CONNECTED,
-								   pdFALSE, pdFALSE, timeout);
-	if (ret == pdFALSE) {
+	EventBits_t event_bits = xEventGroupWaitBits(
+		this->events_.handle, EVENT_STATUS_CONNECTED | EVENT_STATUS_CLOSED,
+		pdFALSE, pdFALSE, timeout);
+
+	if (event_bits & EVENT_STATUS_CLOSED) {
+		status = kErpcStatus_ConnectionClosed;
+	} else if (event_bits & EVENT_STATUS_CONNECTED) {
+		status = kErpcStatus_Success;
+	} else {
 		status = kErpcStatus_Timeout;
 	}
 
@@ -83,17 +150,19 @@ erpc_status_t TinyprotoTransport::connect(TickType_t timeout) {
 
 void TinyprotoTransport::rx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
-	while (1) {
+	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
 		pthis->tinyproto_.run_rx(pthis->read_func_);
 		// we don't explicitly yield as we do in tx_task, since we expect the
 		// user provided read_func_ to "block for a while".
 	}
+
+	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_RX_THREAD_CLOSED);
 	vTaskDelete(NULL);
 }
 
 void TinyprotoTransport::tx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
-	while (1) {
+	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
 		int sent_bytes =
 			tiny_fd_run_tx(pthis->tinyproto_.getHandle(), pthis->write_func_);
 		if (sent_bytes == 0) {
@@ -103,6 +172,8 @@ void TinyprotoTransport::tx_task(void *user_data) {
 			vTaskDelay(1);
 		}
 	}
+
+	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_TX_THREAD_CLOSED);
 	vTaskDelete(NULL);
 }
 
@@ -113,24 +184,22 @@ void TinyprotoTransport::receive_cb(void *user_data, uint8_t addr,
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	taskENTER_CRITICAL(&lock);
 	size_t sent =
-		xMessageBufferSend(pthis->rx_fifo.handle, pkt.data(), pkt.size(), 0);
+		xMessageBufferSend(pthis->rx_fifo_.handle, pkt.data(), pkt.size(), 0);
 	taskEXIT_CRITICAL(&lock);
 	assert(sent == pkt.size());
 
-	xEventGroupSetBits(pthis->events.handle, EVENT_STATUS_NEW_FRAME_PENDING);
+	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_NEW_FRAME_PENDING);
 }
 
 void TinyprotoTransport::connect_cb(void *user_data, uint8_t addr,
 									bool connected) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	if (connected) {
-		xEventGroupSetBits(pthis->events.handle, EVENT_STATUS_CONNECTED);
-		xEventGroupClearBits(pthis->events.handle,
-							 EVENT_STATUS_DISCONNECTION_EVENT_PENDING);
+		xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_CONNECTED);
+		xEventGroupClearBits(pthis->events_.handle, EVENT_STATUS_DISCONNECTED);
 	} else {
-		xEventGroupSetBits(pthis->events.handle,
-						   EVENT_STATUS_DISCONNECTION_EVENT_PENDING);
-		xEventGroupClearBits(pthis->events.handle, EVENT_STATUS_CONNECTED);
+		xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_DISCONNECTED);
+		xEventGroupClearBits(pthis->events_.handle, EVENT_STATUS_CONNECTED);
 	}
 
 	if (pthis->config_.on_connect_status_change_cb) {
@@ -147,6 +216,15 @@ erpc_status_t TinyprotoTransport::send(MessageBuffer *message) {
 	return kErpcStatus_Success;
 }
 erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
+	assert(xEventGroupGetBits(this->events_.handle) & EVENT_STATUS_OPENED);
+
+	if (!(xEventGroupGetBits(this->events_.handle) &
+		  (EVENT_STATUS_CONNECTED))) {
+		xMessageBufferReset(this->rx_fifo_.handle);
+		// not connected yet
+		return kErpcStatus_ConnectionClosed;
+	}
+
 	/*
 	 * NOTE: for some reason access to the message buffer must be protected
 	 * in critical section.
@@ -169,9 +247,8 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 	 * Maybe it's this bug? https://github.com/aws/amazon-freertos/issues/1837
 	 * I tried to apply the proposed workaround, but it doesn't seem to work.
 	 */
-
 	taskENTER_CRITICAL(&lock);
-	if (!xMessageBufferIsEmpty(this->rx_fifo.handle)) {
+	if (!xMessageBufferIsEmpty(this->rx_fifo_.handle)) {
 		/*
 		 * EVENT_STATUS_NEW_FRAME_PENDING could be set multiple times.
 		 * There could be multiple frames pending.
@@ -179,40 +256,56 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 		 * and don't wait for the EVENT_STATUS_NEW_FRAME_PENDING event.
 		 */
 		size_t received = xMessageBufferReceive(
-			this->rx_fifo.handle, message->get(), message->getLength(), 0);
+			this->rx_fifo_.handle, message->get(), message->getLength(), 0);
 		taskEXIT_CRITICAL(&lock);
 		assert(received != 0);
 		message->setUsed(received);
-		xEventGroupClearBits(this->events.handle,
+		xEventGroupClearBits(this->events_.handle,
 							 EVENT_STATUS_NEW_FRAME_PENDING);
 		return kErpcStatus_Success;
 	} else {
 		taskEXIT_CRITICAL(&lock);
 	}
 
-	if (!(xEventGroupGetBits(this->events.handle) & EVENT_STATUS_CONNECTED)) {
-		// not connected yet
-		return kErpcStatus_ConnectionClosed;
-	}
-
 	{
 		erpc_status_t status = kErpcStatus_Success;
 		/*
-		 * No frame yet. Wait to receive. Once received, the bit
-		 * EVENT_STATUS_NEW_FRAME_PENDING is cleared.
+		 * No frame yet. Wait to receive.
 		 */
-		EventBits_t event =
-			xEventGroupWaitBits(this->events.handle,
-								EVENT_STATUS_DISCONNECTION_EVENT_PENDING |
-									EVENT_STATUS_NEW_FRAME_PENDING,
-								pdTRUE, pdFALSE, this->config_.receive_timeout);
+		EventBits_t event = xEventGroupWaitBits(
+			this->events_.handle,
+			EVENT_STATUS_NEW_FRAME_PENDING | EVENT_STATUS_DISCONNECTED |
+				EVENT_STATUS_CLOSED,
+			pdFALSE, pdFALSE, this->config_.receive_timeout);
 
 		bool event_received = false;
 		if (event & EVENT_STATUS_NEW_FRAME_PENDING) {
+			/*
+			 * Is it possible to lose events due to clearing this bit at
+			 * this stage, instead of passing pdTRUE to the xClearOnExit
+			 * parameter of xEventGroupWaitBits? Yes. But, as commented above,
+			 * if multiple frames are received quickly,
+			 * EVENT_STATUS_NEW_FRAME_PENDING may be set multiple times, in
+			 * which case we also lose events.
+			 * That's why we also initially check whether the message buffer
+			 * is empty or not and if not read what's left in there.
+			 * We don't rely on EVENT_STATUS_NEW_FRAME_PENDING as the *only*
+			 * "trigger" to read from the message buffer, so we don't risk
+			 * leaving unread data in the message buffer.
+			 * OTOH not using xClearOnExit makes things easier. In fact
+			 * FreeRTOS doesn't allow to clear *only some of the bits we are
+			 * waiting for* on exit, which means that we can't wait for other
+			 * "shared" event bits (e.g. EVENT_STATUS_CLOSED) while we're
+			 * waiting for EVENT_STATUS_NEW_FRAME_PENDING if we wanted to clear
+			 * it with xClearOnExit, because also these would be cleared if set
+			 * while we're waiting, which is not what we want.
+			 */
+			xEventGroupClearBits(this->events_.handle,
+								 EVENT_STATUS_NEW_FRAME_PENDING);
 			taskENTER_CRITICAL(&lock);
-			if (!xMessageBufferIsEmpty(this->rx_fifo.handle)) {
+			if (!xMessageBufferIsEmpty(this->rx_fifo_.handle)) {
 				size_t received =
-					xMessageBufferReceive(this->rx_fifo.handle, message->get(),
+					xMessageBufferReceive(this->rx_fifo_.handle, message->get(),
 										  message->getLength(), 0);
 				taskEXIT_CRITICAL(&lock);
 				assert(received != 0);
@@ -223,13 +316,12 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 
 			event_received = true;
 		}
-		if (event & EVENT_STATUS_DISCONNECTION_EVENT_PENDING) {
-			xMessageBufferReset(this->rx_fifo.handle);
+		if (event & (EVENT_STATUS_CLOSED | EVENT_STATUS_DISCONNECTED)) {
+			xMessageBufferReset(this->rx_fifo_.handle);
 			/*
-			 * Disconnected. Why do we return kErpcStatus_Timeout instead of
-			 * kErpcStatus_ConnectionClosed?
-			 * Well, eRPC unblocks clients only when the error is timeout...
-			 * See
+			 * Disconnected or closed. Why do we return kErpcStatus_Timeout
+			 * instead of kErpcStatus_ConnectionClosed? Well, eRPC unblocks
+			 * clients only when the error is timeout... See
 			 * https://github.com/EmbeddedRPC/erpc/blob/cd8ffc8c7f08cb6fb123b86422ecbb738a26a69c/erpc_c/infra/erpc_transport_arbitrator.cpp#L79-L90
 			 */
 			status = kErpcStatus_Timeout;
@@ -247,5 +339,5 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 }
 
 bool TinyprotoTransport::hasMessage(void) {
-	return !xMessageBufferIsEmpty(this->rx_fifo.handle);
+	return !xMessageBufferIsEmpty(this->rx_fifo_.handle);
 }

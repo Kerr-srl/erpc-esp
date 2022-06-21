@@ -142,10 +142,12 @@ void app_main() {
 	tinyproto_config.on_connect_status_change_cb =
 		on_tinyproto_connect_status_change;
 	erpc_transport_t transport = erpc_esp_transport_tinyproto_init(
-		g_tinyproto_rx_buffer, sizeof(g_tinyproto_rx_buffer), tinyproto_write_fn, tinyproto_read_fn,
-		&tinyproto_config);
+		g_tinyproto_rx_buffer, sizeof(g_tinyproto_rx_buffer),
+		tinyproto_write_fn, tinyproto_read_fn, &tinyproto_config);
 
-	bool res = erpc_esp_transport_tinyproto_connect(portMAX_DELAY);
+	erpc_esp_transport_tinyproto_open();
+
+	bool res = erpc_esp_transport_tinyproto_wait_connected(portMAX_DELAY);
 	assert(res);
 	ESP_LOGI(TAG, "Connection established");
 

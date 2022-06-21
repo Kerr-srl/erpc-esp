@@ -161,6 +161,8 @@ def main(port: str, baudrate: int, reset: bool, print_logs: bool):
         read_func, write_func, receive_timeout=5, send_timeout=5
     )
 
+    tinyproto_transport.open()
+
     arbitrator = erpc.arbitrator.TransportArbitrator(
         tinyproto_transport, erpc.basic_codec.BasicCodec()
     )

@@ -79,6 +79,15 @@ erpc_transport_t erpc_esp_transport_tinyproto_init(
 	const struct erpc_esp_transport_tinyproto_config *config);
 
 /**
+ * Open Tinyproto transport.
+ */
+void erpc_esp_transport_tinyproto_open(void);
+/**
+ * Close Tinyproto transport.
+ */
+void erpc_esp_transport_tinyproto_close(void);
+
+/**
  * Block and wait until connection is established
  *
  * \param [in] timeout
@@ -86,7 +95,7 @@ erpc_transport_t erpc_esp_transport_tinyproto_init(
  * \retval true connection established
  * \retval false timeout
  */
-bool erpc_esp_transport_tinyproto_connect(TickType_t timeout);
+bool erpc_esp_transport_tinyproto_wait_connected(TickType_t timeout);
 
 #ifdef __cplusplus
 }

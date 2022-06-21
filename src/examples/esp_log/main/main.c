@@ -111,7 +111,9 @@ void app_main() {
 		g_tinyproto_rx_buffer, sizeof(g_tinyproto_rx_buffer),
 		tinyproto_write_fn, tinyproto_read_fn, &tinyproto_config);
 
-	erpc_esp_transport_tinyproto_connect(portMAX_DELAY);
+	erpc_esp_transport_tinyproto_open();
+
+	erpc_esp_transport_tinyproto_wait_connected(portMAX_DELAY);
 	ESP_LOGI(TAG, "Connection established");
 
 	erpc_mbf_t message_buffer_factory = erpc_mbf_static_init();

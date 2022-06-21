@@ -55,7 +55,18 @@ class TinyprotoTransport : public Transport {
 					   const erpc_esp_transport_tinyproto_config &config);
 
 	/*!
-	 * @brief This function will establish connection with the other side
+	 * @brief Open the transport. No communication happens before the transport
+	 * is opened.
+	 */
+	void open();
+	/*!
+	 * @brief Close the transport. No communication can happen after the
+	 * transport is closed.
+	 */
+	void close();
+
+	/*!
+	 * @brief Wait until the connection with the peer has been established.
 	 *
 	 * \param [in] timeout connection timeout
 	 *
@@ -63,7 +74,7 @@ class TinyprotoTransport : public Transport {
 	 * connected successfully.
 	 * @retval #kErpcStatus_Timeout Connection timeout
 	 */
-	erpc_status_t connect(TickType_t timeout);
+	erpc_status_t wait_connected(TickType_t timeout);
 
   private:
 	/*!
@@ -146,11 +157,11 @@ class TinyprotoTransport : public Transport {
 		StaticMessageBuffer_t buf;
 		MessageBufferHandle_t handle;
 		uint8_t buffer[256];
-	} rx_fifo;
+	} rx_fifo_;
 	struct {
 		StaticEventGroup_t buf;
 		EventGroupHandle_t handle;
-	} events;
+	} events_;
 };
 } // namespace esp
 } // namespace erpc
