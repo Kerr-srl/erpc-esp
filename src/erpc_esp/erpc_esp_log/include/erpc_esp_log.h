@@ -16,10 +16,18 @@ extern "C" {
 #endif
 
 /**
+ * Private macro
+ */
+#define ERPC_ESP_LOG_PREFIX_ "I (0) erpc: ["
+#define ERPC_ESP_LOG_POSTFIX_ "]\n"
+#define ERPC_ESP_STRLEN_(_str_) (sizeof(_str_) - 1)
+
+/**
  * Size of the char buffer that is required to send  \p _input_len_ bytes
  */
 #define ERPC_ESP_LOG_REQUIRED_BUFFER_SIZE(_input_len_)                         \
-	(((size_t)_input_len_ * 2u) + 1u)
+	(ERPC_ESP_STRLEN_(ERPC_ESP_LOG_PREFIX_) + ((size_t)_input_len_ * 2u) +     \
+	 ERPC_ESP_STRLEN_(ERPC_ESP_LOG_POSTFIX_) + 1)
 
 /**
  * Send using esp log

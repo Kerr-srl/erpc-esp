@@ -10,14 +10,26 @@
 #include "esp_log.h"
 #define TAG "erpc"
 
+#include "driver/uart.h"
+#include "sdkconfig.h"
+
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 void erpc_esp_log_transport_send(const uint8_t *data, uint32_t size,
 								 char *buffer) {
-	for (size_t i = 0; i < size; ++i) {
-		sprintf(buffer + (i * 2), "%02x", data[i]);
+	size_t i = 0;
+	strcat(buffer, ERPC_ESP_LOG_PREFIX_);
+	i += ERPC_ESP_STRLEN_(ERPC_ESP_LOG_PREFIX_);
+	for (size_t j = 0; j < size; ++j) {
+		sprintf(buffer + i + (j * 2), "%02x", data[j]);
 	}
-	buffer[(size * 2)] = '\0';
-	ESP_LOGI(TAG, "[%s]", buffer);
+	i += size * 2;
+	strcat(buffer + i, ERPC_ESP_LOG_POSTFIX_);
+	i += ERPC_ESP_STRLEN_(ERPC_ESP_LOG_POSTFIX_);
+	buffer[i] = '\0';
+	++i;
+
+	uart_write_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, i);
 }
