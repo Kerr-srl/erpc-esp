@@ -167,13 +167,25 @@ void TinyprotoTransport::rx_task(void *user_data) {
 void TinyprotoTransport::tx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
-		int sent_bytes =
-			tiny_fd_run_tx(pthis->tinyproto_.getHandle(), pthis->write_func_);
-		if (sent_bytes == 0) {
+		tiny_fd_handle_t handle = pthis->tinyproto_.getHandle();
+		uint8_t buf[512];
+		int to_be_sent = tiny_fd_get_tx_data(handle, buf, sizeof(buf));
+		assert(to_be_sent >= 0);
+
+		if (to_be_sent == 0) {
 			// to avoid starving other tasks. In particular to ensure that the
 			// watchdog is triggered See
 			// https://github.com/espressif/esp-idf/issues/1646
 			vTaskDelay(1);
+			continue;
+		}
+
+		uint8_t *ptr = buf;
+		while (to_be_sent) {
+			int result = pthis->write_func_(NULL, ptr, to_be_sent);
+			assert(result >= 0);
+			to_be_sent -= result;
+			ptr += result;
 		}
 	}
 

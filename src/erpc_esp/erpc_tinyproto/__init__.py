@@ -175,7 +175,8 @@ class TinyprotoTransport(erpc.transport.Transport):
 
         def run(self):
             while not self.stopped():
-                self.transport._proto.run_rx(self.transport._read_func)
+                read_bytes = self.transport._read_func(2048)
+                self.transport._proto.rx(read_bytes)
 
     class TxThread(StoppableThread):
         def __init__(self, transport: "TinyprotoTransport", *args, **kwargs):

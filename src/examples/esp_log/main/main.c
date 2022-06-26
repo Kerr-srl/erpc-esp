@@ -22,11 +22,17 @@
 
 #include <string.h>
 
-#define TX_TASK_PRIORITY 1
-#define RX_TASK_PRIORITY 2
-
+/**
+ * Send as soon as possible
+ */
+#define TX_TASK_PRIORITY 3
+/**
+ * RX has lower priority than client and server tasks because otherwise
+ * too many unprocessed frames could fill the RX queue
+ */
+#define RX_TASK_PRIORITY 1
 #define CLIENT_TASK_PRIORITY 2
-#define SERVER_TASK_PRIORITY 3
+#define SERVER_TASK_PRIORITY 2
 
 #define CONNECTED_BIT BIT0
 
@@ -98,7 +104,7 @@ void app_main() {
 	g_event_flag = xEventGroupCreate();
 	assert(g_event_flag);
 
-	ESP_ERROR_CHECK(uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 1000, 1000,
+	ESP_ERROR_CHECK(uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 1024, 1024,
 										100, NULL, 0));
 
 	tinyproto_config.rx_task_priority = RX_TASK_PRIORITY;
