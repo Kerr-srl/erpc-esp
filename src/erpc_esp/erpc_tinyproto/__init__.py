@@ -224,8 +224,8 @@ class TinyprotoTransport(erpc.transport.Transport):
         """
 
         def on_read(data):
-            self._event_flags.set_bits(_EventFlags.NEW_FRAME_RX_PENDING)
             self._rx_fifo.put(data, block=True)
+            self._event_flags.set_bits(_EventFlags.NEW_FRAME_RX_PENDING)
 
         def on_connect_event(address, connected):
             if connected:
@@ -306,6 +306,7 @@ class TinyprotoTransport(erpc.transport.Transport):
     def receive(self):
         if self._rx_fifo.qsize() > 0:
             try:
+                self._event_flags.clear_bits(_EventFlags.NEW_FRAME_RX_PENDING)
                 return self._rx_fifo.get(block=False)
             except queue.Empty:
                 raise AssertionError("Queue must contain at least one item")
