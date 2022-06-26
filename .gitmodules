@@ -4,3 +4,6 @@
 [submodule "external/tinyproto"]
 	path = external/tinyproto
 	url = https://github.com/Kerr-srl/tinyproto.git
+[submodule "external/FreeRTOS-Kernel"]
+	path = external/FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel

@@ -20,7 +20,7 @@ AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
 BinPackArguments: true
 BinPackParameters: true
-BraceWrapping:   
+BraceWrapping:
   AfterClass:      false
   AfterControlStatement: false
   AfterEnum:       false
@@ -54,7 +54,7 @@ ForEachMacros:
   - TEST_GROUP_RUNNER # Test macro for Unity
   - TEST_SETUP # Test macro for Unity
   - TEST_TEAR_DOWN # Test macro for Unity
-IncludeCategories: 
+IncludeCategories:
   - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
     Priority:        2
   - Regex:           '^(<|"(gtest|isl|json)/)'
@@ -64,7 +64,7 @@ IncludeCategories:
 IndentCaseLabels: false
 IndentWidth:     4
 IndentWrappedFunctionNames: false
-IndentPPDirectives: AfterHash
+IndentPPDirectives: None
 KeepEmptyLinesAtTheStartOfBlocks: true
 MacroBlockBegin: ''
 MacroBlockEnd:   ''

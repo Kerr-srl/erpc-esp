@@ -16,6 +16,8 @@
 
 #include "tinyproto_transport.hpp"
 
+#include "erpc_esp/utils.h"
+
 #include <cassert>
 
 enum event_status {
@@ -105,13 +107,15 @@ void TinyprotoTransport::open() {
 	{
 		TaskHandle_t ret = nullptr;
 		ret = xTaskCreateStatic(this->rx_task, "TinyprotoRx",
-								sizeof(this->rx_task_.stack), this,
-								this->config_.rx_task_priority,
+								sizeof(this->rx_task_.stack) /
+									sizeof(this->rx_task_.stack[0]),
+								this, this->config_.rx_task_priority,
 								this->rx_task_.stack, &this->rx_task_.buffer);
 		assert(ret);
 		ret = xTaskCreateStatic(this->tx_task, "TinyprotoTx",
-								sizeof(this->tx_task_.stack), this,
-								this->config_.tx_task_priority,
+								sizeof(this->tx_task_.stack) /
+									sizeof(this->tx_task_.stack[0]),
+								this, this->config_.tx_task_priority,
 								this->tx_task_.stack, &this->tx_task_.buffer);
 		assert(ret);
 	}
@@ -177,15 +181,16 @@ void TinyprotoTransport::tx_task(void *user_data) {
 	vTaskDelete(NULL);
 }
 
-static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+static erpc_esp_freertos_critical_section_lock lock =
+	ERPC_ESP_FREERTOS_CRITICAL_SECTION_LOCK_INIT;
 
 void TinyprotoTransport::receive_cb(void *user_data, uint8_t addr,
 									tinyproto::IPacket &pkt) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
-	taskENTER_CRITICAL(&lock);
+	erpc_esp_freertos_critical_enter(&lock);
 	size_t sent =
 		xMessageBufferSend(pthis->rx_fifo_.handle, pkt.data(), pkt.size(), 0);
-	taskEXIT_CRITICAL(&lock);
+	erpc_esp_freertos_critical_exit(&lock);
 	assert(sent == pkt.size());
 
 	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_NEW_FRAME_PENDING);
@@ -247,7 +252,7 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 	 * Maybe it's this bug? https://github.com/aws/amazon-freertos/issues/1837
 	 * I tried to apply the proposed workaround, but it doesn't seem to work.
 	 */
-	taskENTER_CRITICAL(&lock);
+	erpc_esp_freertos_critical_enter(&lock);
 	if (!xMessageBufferIsEmpty(this->rx_fifo_.handle)) {
 		/*
 		 * EVENT_STATUS_NEW_FRAME_PENDING could be set multiple times.
@@ -257,14 +262,14 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 		 */
 		size_t received = xMessageBufferReceive(
 			this->rx_fifo_.handle, message->get(), message->getLength(), 0);
-		taskEXIT_CRITICAL(&lock);
+		erpc_esp_freertos_critical_exit(&lock);
 		assert(received != 0);
 		message->setUsed(received);
 		xEventGroupClearBits(this->events_.handle,
 							 EVENT_STATUS_NEW_FRAME_PENDING);
 		return kErpcStatus_Success;
 	} else {
-		taskEXIT_CRITICAL(&lock);
+		erpc_esp_freertos_critical_exit(&lock);
 	}
 
 	{
@@ -302,16 +307,16 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 			 */
 			xEventGroupClearBits(this->events_.handle,
 								 EVENT_STATUS_NEW_FRAME_PENDING);
-			taskENTER_CRITICAL(&lock);
+			erpc_esp_freertos_critical_enter(&lock);
 			if (!xMessageBufferIsEmpty(this->rx_fifo_.handle)) {
 				size_t received =
 					xMessageBufferReceive(this->rx_fifo_.handle, message->get(),
 										  message->getLength(), 0);
-				taskEXIT_CRITICAL(&lock);
+				erpc_esp_freertos_critical_exit(&lock);
 				assert(received != 0);
 				message->setUsed(received);
 			} else {
-				taskEXIT_CRITICAL(&lock);
+				erpc_esp_freertos_critical_exit(&lock);
 			}
 
 			event_received = true;

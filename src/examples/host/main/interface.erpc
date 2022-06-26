@@ -1,0 +1,17 @@
+program hello_world
+
+/*
+ * Services of the firmware
+ */
+@group(target)
+interface hello_world_target {
+    oneway say_hello_to_target(string name, uint32 i)
+}
+
+/*
+ * Services of the host
+ */
+@group(host)
+interface hello_world_host {
+    oneway say_hello_to_host(string name, uint32 i)
+}

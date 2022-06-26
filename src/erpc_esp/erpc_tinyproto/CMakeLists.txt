@@ -9,4 +9,6 @@ idf_component_register(
     erpc
     tinyproto
     INCLUDE_DIRS
-    include)
+    include
+    PRIV_REQUIRES
+    erpc_esp_utils)
