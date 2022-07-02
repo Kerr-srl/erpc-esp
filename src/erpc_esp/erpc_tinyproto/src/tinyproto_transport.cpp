@@ -66,6 +66,12 @@ enum event_status {
 	 * Set by RX thread just before its termination.
 	 */
 	EVENT_STATUS_RX_THREAD_CLOSED = 1 << 6,
+	/**
+	 * Set whenever something could leads to potentially new data to be
+	 * transmitted.
+	 * TX thread waits on this flags and clears it.
+	 */
+	EVENT_STATUS_POTENTIAL_NEW_TX = 1 << 7,
 };
 
 using namespace erpc::esp;
@@ -154,10 +160,21 @@ erpc_status_t TinyprotoTransport::wait_connected(TickType_t timeout) {
 
 void TinyprotoTransport::rx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
+	tiny_fd_handle_t handle = pthis->tinyproto_.getHandle();
+	uint8_t buf[4];
 	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
-		pthis->tinyproto_.run_rx(pthis->read_func_);
-		// we don't explicitly yield as we do in tx_task, since we expect the
-		// user provided read_func_ to "block for a while".
+		/*
+		 * We don't explicitly yield as we do in tx_task, since we expect the
+		 * user provided read_func_ to "block for a while" and thus we won't
+		 * starve other tasks
+		 */
+		int len = pthis->read_func_(NULL, buf, sizeof(buf));
+		if (len > 0) {
+			tiny_fd_on_rx_data(handle, buf, len);
+			// Something was received. Potentially there is need to send ACK.
+			xEventGroupSetBits(pthis->events_.handle,
+							   EVENT_STATUS_POTENTIAL_NEW_TX);
+		}
 	}
 
 	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_RX_THREAD_CLOSED);
@@ -166,26 +183,30 @@ void TinyprotoTransport::rx_task(void *user_data) {
 
 void TinyprotoTransport::tx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
+	tiny_fd_handle_t handle = pthis->tinyproto_.getHandle();
+	uint8_t buf[512];
+	int to_be_sent = 0;
 	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
-		tiny_fd_handle_t handle = pthis->tinyproto_.getHandle();
-		uint8_t buf[512];
-		int to_be_sent = tiny_fd_get_tx_data(handle, buf, sizeof(buf));
+		to_be_sent = tiny_fd_get_tx_data(handle, buf, sizeof(buf));
 		assert(to_be_sent >= 0);
-
 		if (to_be_sent == 0) {
-			// to avoid starving other tasks. In particular to ensure that the
-			// watchdog is triggered See
-			// https://github.com/espressif/esp-idf/issues/1646
-			vTaskDelay(1);
-			continue;
-		}
-
-		uint8_t *ptr = buf;
-		while (to_be_sent) {
-			int result = pthis->write_func_(NULL, ptr, to_be_sent);
-			assert(result >= 0);
-			to_be_sent -= result;
-			ptr += result;
+			/*
+			 * NOTE: When there is nothing to send, wait on this event flag
+			 * until there's some else to send. Don't just busy loop, which
+			 * could lead to starvation of other tasks. In particular we want to
+			 * ensure that the watchdog is triggered.
+			 */
+			xEventGroupWaitBits(pthis->events_.handle,
+								EVENT_STATUS_POTENTIAL_NEW_TX, pdTRUE, pdFALSE,
+								portMAX_DELAY);
+		} else {
+			uint8_t *ptr = buf;
+			while (to_be_sent) {
+				int result = pthis->write_func_(NULL, ptr, to_be_sent);
+				assert(result >= 0);
+				to_be_sent -= result;
+				ptr += result;
+			}
 		}
 	}
 
@@ -230,6 +251,12 @@ erpc_status_t TinyprotoTransport::send(MessageBuffer *message) {
 	if (ret < 0) {
 		return kErpcStatus_SendFailed;
 	}
+
+	/*
+	 * Successfully queued some data to be sent. Unblock the TX thread
+	 * immediately, if it is waiting for new TX data.
+	 */
+	xEventGroupSetBits(this->events_.handle, EVENT_STATUS_POTENTIAL_NEW_TX);
 	return kErpcStatus_Success;
 }
 erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
