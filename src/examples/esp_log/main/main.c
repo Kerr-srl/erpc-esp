@@ -89,7 +89,7 @@ static int tinyproto_write_fn(void *pdata, const void *buffer, int size) {
 	return size;
 }
 static int tinyproto_read_fn(void *pdata, void *buffer, int size) {
-	return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, size,
+	return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, 1,
 						   pdMS_TO_TICKS(5));
 }
 
