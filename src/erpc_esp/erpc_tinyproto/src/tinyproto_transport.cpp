@@ -72,6 +72,11 @@ enum event_status {
 	 * TX thread waits on this flags and clears it.
 	 */
 	EVENT_STATUS_POTENTIAL_NEW_TX = 1 << 7,
+	/**
+	 * Set whenever some data is read from the RX queue.
+	 * If RX queue is full, RX thread waits on this flags and clears it.
+	 */
+	EVENT_STATUS_RX_QUEUE_READ = 1 << 8,
 };
 
 using namespace erpc::esp;
@@ -220,13 +225,21 @@ static erpc_esp_freertos_critical_section_lock lock =
 void TinyprotoTransport::receive_cb(void *user_data, uint8_t addr,
 									tinyproto::IPacket &pkt) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
-	erpc_esp_freertos_critical_enter(&lock);
-	size_t sent =
-		xMessageBufferSend(pthis->rx_fifo_.handle, pkt.data(), pkt.size(), 0);
-	erpc_esp_freertos_critical_exit(&lock);
-	assert(sent == pkt.size());
-
-	xEventGroupSetBits(pthis->events_.handle, EVENT_STATUS_NEW_FRAME_PENDING);
+	while (1) {
+		erpc_esp_freertos_critical_enter(&lock);
+		size_t sent = xMessageBufferSend(pthis->rx_fifo_.handle, pkt.data(),
+										 pkt.size(), 0);
+		erpc_esp_freertos_critical_exit(&lock);
+		if (sent == pkt.size()) {
+			xEventGroupSetBits(pthis->events_.handle,
+							   EVENT_STATUS_NEW_FRAME_PENDING);
+			break;
+		} else {
+			xEventGroupWaitBits(pthis->events_.handle,
+								EVENT_STATUS_RX_QUEUE_READ, pdTRUE, pdFALSE,
+								portMAX_DELAY);
+		}
+	}
 }
 
 void TinyprotoTransport::connect_cb(void *user_data, uint8_t addr,
@@ -303,6 +316,8 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 			this->rx_fifo_.handle, message->get(), message->getLength(), 0);
 		erpc_esp_freertos_critical_exit(&lock);
 		assert(received != 0);
+		xEventGroupSetBits(this->events_.handle, EVENT_STATUS_RX_QUEUE_READ);
+
 		message->setUsed(received);
 		xEventGroupClearBits(this->events_.handle,
 							 EVENT_STATUS_NEW_FRAME_PENDING);
@@ -353,6 +368,9 @@ erpc_status_t TinyprotoTransport::receive(MessageBuffer *message) {
 										  message->getLength(), 0);
 				erpc_esp_freertos_critical_exit(&lock);
 				assert(received != 0);
+				xEventGroupSetBits(this->events_.handle,
+								   EVENT_STATUS_RX_QUEUE_READ);
+
 				message->setUsed(received);
 			} else {
 				erpc_esp_freertos_critical_exit(&lock);
