@@ -203,7 +203,11 @@ void TinyprotoTransport::tx_task(void *user_data) {
 			 */
 			xEventGroupWaitBits(pthis->events_.handle,
 								EVENT_STATUS_POTENTIAL_NEW_TX, pdTRUE, pdFALSE,
-								portMAX_DELAY);
+								/*
+								 * OTOH, Tinyproto also needs to send keep alive
+								 * frames sometimes, so we can't block forever.
+								 */
+								1);
 		} else {
 			uint8_t *ptr = buf;
 			while (to_be_sent) {
