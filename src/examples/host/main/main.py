@@ -1,5 +1,6 @@
 import argparse
 from subprocess import PIPE, Popen
+import sys
 import threading
 import time
 from typing import Optional, TypeVar
@@ -118,19 +119,26 @@ def _assert_not_none(obj: Optional[T]) -> T:
 
 
 def main(program: str):
-    p = Popen(program, stdin=PIPE, stdout=None, stderr=PIPE, close_fds=True)
+    esp_app = Popen(
+        program,
+        # Unbuffered pipe
+        bufsize=0,
+        stdin=PIPE,
+        stdout=sys.stderr,
+        stderr=PIPE,
+    )
 
     def write_func(data: bytearray):
         try:
-            written = _assert_not_none(p.stdin).write(data)
-            _assert_not_none(p.stdin).flush()
+            written = _assert_not_none(esp_app.stdin).write(data)
+            _assert_not_none(esp_app.stdin).flush()
         except Exception as e:
             print(e)
             raise e
         return written
 
     def read_func(max_count):
-        data = _assert_not_none(p.stderr).read(max_count)
+        data = _assert_not_none(esp_app.stderr).read(max_count)
         return data
 
     # Create shared transport
@@ -172,7 +180,8 @@ def main(program: str):
         client_thread.stop()
         server_thread.join()
         client_thread.join()
-        p.terminate()
+        esp_app.terminate()
+        print(f"ESP-APP terminated with return code: {esp_app.returncode}")
 
 
 if __name__ == "__main__":

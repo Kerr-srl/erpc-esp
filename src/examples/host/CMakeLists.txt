@@ -31,6 +31,3 @@ list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/../../erpc_esp/
 set(COMPONENTS main)
 
 project(host)
-
-# idf_build_get_property(python BUILD_COMPONENTS) message(FATAL_ERROR
-# "${python}")

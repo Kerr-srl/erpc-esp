@@ -1,4 +1,11 @@
-idf_component_register(SRCS "main.c" REQUIRES erpc erpc_tinyproto)
+idf_component_register(
+    SRCS
+    "main.c"
+    REQUIRES
+    erpc
+    erpc_tinyproto
+    posix_io
+    log)
 
 erpc_add_idl_target(
     interface.erpc

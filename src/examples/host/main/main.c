@@ -1,3 +1,4 @@
+#include "erpc_esp/host/posix_io.h"
 #include "erpc_esp_tinyproto_transport_setup.h"
 
 #include "gen/hello_world_host.h"
@@ -10,6 +11,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
+#include "freertos/stream_buffer.h"
 #include "freertos/task.h"
 
 #include "esp_log.h"
@@ -19,8 +22,12 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define TX_TASK_PRIORITY 3
 #define RX_TASK_PRIORITY 3
@@ -78,18 +85,16 @@ static void on_tinyproto_connect_status_change(bool connected) {
 	}
 }
 
+static erpc_esp_host_posix_io g_posix_io_stderr;
 static int tinyproto_write_fn(void *pdata, const void *buffer, int size) {
-	ssize_t ret = write(STDERR_FILENO, buffer, size);
-	return ret;
+	ESP_LOGD(TAG, "Sending %d bytes", size);
+	return erpc_esp_host_posix_write(&g_posix_io_stderr, buffer, size);
 }
+
+static erpc_esp_host_posix_io g_posix_io_stdin;
 static int tinyproto_read_fn(void *pdata, void *buffer, int size) {
-	ssize_t ret = read(STDIN_FILENO, buffer, size);
-	/*
-	 * The read syscall doesn't yield (due to lack of synergy between POSIX and
-	 * FreeRTOS). Simulate blocking read.
-	 */
-	vTaskDelay(1);
-	return ret;
+	ESP_LOGD(TAG, "Reading %d bytes", size);
+	return erpc_esp_host_posix_read(&g_posix_io_stdin, buffer, size);
 }
 
 static struct erpc_esp_transport_tinyproto_config tinyproto_config =
@@ -119,7 +124,34 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer,
 		sizeof(task_stack_buffer) / sizeof(task_stack_buffer[0]);
 }
 
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
+	ESP_LOGE(TAG, "Stack overflow of TASK \"%s\"", pcTaskName);
+	exit(0);
+}
+
+void vApplicationIdleHook(void) {
+	/*ESP_LOGD(TAG, "IDLE");*/
+}
+
+static SemaphoreHandle_t printf_mutex;
+static int vprint_with_freertos_mutex(const char *str, va_list va) {
+	xSemaphoreTake(printf_mutex, portMAX_DELAY);
+	int ret = vprintf(str, va);
+	xSemaphoreGive(printf_mutex);
+	return ret;
+}
+
 int main() {
+	erpc_esp_host_posix_io_init(&g_posix_io_stderr, STDERR_FILENO, true);
+	erpc_esp_host_posix_io_init(&g_posix_io_stdin, STDIN_FILENO, false);
+
+	printf_mutex = xSemaphoreCreateMutex();
+	assert(printf_mutex);
+	esp_log_set_vprintf(vprint_with_freertos_mutex);
+
+	// Increase this level to debug
+	esp_log_level_set("*", ESP_LOG_INFO);
+
 	ESP_LOGI(TAG, "Target started");
 
 	g_event_flag = xEventGroupCreate();
@@ -146,10 +178,15 @@ int main() {
 	erpc_server_init(arbitrator, message_buffer_factory);
 	erpc_add_service_to_server(create_hello_world_target_service());
 
-	xTaskCreate(server_task, "server", 0x1000, NULL, SERVER_TASK_PRIORITY,
-				NULL);
-	xTaskCreate(client_task, "client", 0x1000, NULL, CLIENT_TASK_PRIORITY,
-				NULL);
+	/*
+	 * 4096 as stack size seems to be not enough. It causes application to hang.
+	 */
+	BaseType_t created = xTaskCreate(server_task, "server", 1024, NULL,
+									 SERVER_TASK_PRIORITY, NULL);
+	assert(created == pdPASS);
+	created = xTaskCreate(client_task, "client", 1024, NULL,
+						  CLIENT_TASK_PRIORITY, NULL);
+	assert(created == pdPASS);
 
 	vTaskStartScheduler();
 	return 0;
