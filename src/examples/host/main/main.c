@@ -130,7 +130,13 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
 }
 
 void vApplicationIdleHook(void) {
-	/*ESP_LOGD(TAG, "IDLE");*/
+	/*
+	 * Why invoke nanosleep in idle hook?
+	 * See https://www.freertos.org/FreeRTOS-simulator-for-Linux.html
+	 * "Known Issues"
+	 */
+	struct timespec sleep = {.tv_sec = 1};
+	nanosleep(&sleep, NULL);
 }
 
 static SemaphoreHandle_t printf_mutex;
@@ -160,7 +166,7 @@ int main() {
 	tinyproto_config.rx_task_priority = RX_TASK_PRIORITY;
 	tinyproto_config.tx_task_priority = TX_TASK_PRIORITY;
 	tinyproto_config.send_timeout = pdMS_TO_TICKS(5000);
-	tinyproto_config.receive_timeout = pdMS_TO_TICKS(5000);
+	tinyproto_config.receive_timeout = portMAX_DELAY;
 	tinyproto_config.on_connect_status_change_cb =
 		on_tinyproto_connect_status_change;
 	erpc_transport_t transport = erpc_esp_transport_tinyproto_init(

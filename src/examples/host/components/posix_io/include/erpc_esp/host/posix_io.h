@@ -2,7 +2,9 @@
 #define ERPC_ESP_HOST_POSIX_IO_H_
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/stream_buffer.h"
+#include "freertos/task.h"
 
 #include <pthread.h>
 
@@ -19,11 +21,31 @@ extern "C" {
  */
 typedef struct {
 	int fd;
-	StaticMessageBuffer_t buf;
-	StreamBufferHandle_t handle;
+	union {
+		struct {
+			struct {
+				StaticMessageBuffer_t buf;
+				StreamBufferHandle_t handle;
+				uint8_t data_buffer[256];
+			} fifo;
+		} tx;
+		struct {
+			struct {
+				/**
+				 * NULL if no no pending read to be performed by reader thread
+				 */
+				uint8_t *buffer;
+				size_t buffer_max_size;
+				size_t actually_read_size;
+			} pending;
+			struct {
+				StaticSemaphore_t buf;
+				SemaphoreHandle_t handle;
+			} sem;
+		} rx;
+	} io;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
-	uint8_t buffer[256];
 } erpc_esp_host_posix_io;
 
 /**

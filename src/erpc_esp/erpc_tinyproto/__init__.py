@@ -192,7 +192,7 @@ class TinyprotoTransport(erpc.transport.Transport):
         read_func,
         write_func,
         send_timeout: float = 0.5,
-        receive_timeout: float = 0.5,
+        receive_timeout: float = None,
     ):
         """
         TinyprotoTransport constructor

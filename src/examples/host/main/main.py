@@ -71,17 +71,31 @@ class ServerThread(StoppableThread):
         self._server.stop()
 
 
+def interact(locals):
+    # Copied from https://stackoverflow.com/a/50918009
+    import code
+    import readline
+    import rlcompleter
+
+    readline.set_completer(rlcompleter.Completer(locals).complete)
+    readline.parse_and_bind("tab: complete")
+    console = code.InteractiveConsole(locals)
+    console.interact("INTERACT WITH THE PROGRAM VIA THE 'client' OBJECT!")
+
+
 class ClientThread(StoppableThread):
     def __init__(
         self,
         client_manager: erpc.client.ClientManager,
         transport: erpc_tinyproto.TinyprotoTransport,
+        repl: bool = False,
         *args,
         **kwargs,
     ):
         super(ClientThread, self).__init__(*args, **kwargs)
         self._client_manager = client_manager
         self._transport = transport
+        self._repl = repl
 
     def run(self):
         client = target.client.hello_world_targetClient(self._client_manager)
@@ -89,6 +103,10 @@ class ClientThread(StoppableThread):
 
         print(f"eRPC client: Waiting connection")
         self._transport.wait_connected()
+
+        if self._repl:
+            interact(locals())
+            self.stop()
 
         while not self.stopped():
             print(f"Calling target ({i})...")
@@ -118,7 +136,7 @@ def _assert_not_none(obj: Optional[T]) -> T:
     return obj
 
 
-def main(program: str):
+def main(program: str, repl: bool):
     esp_app = Popen(
         program,
         # Unbuffered pipe
@@ -143,7 +161,7 @@ def main(program: str):
 
     # Create shared transport
     tinyproto_transport = erpc_tinyproto.TinyprotoTransport(
-        read_func, write_func, receive_timeout=5, send_timeout=5
+        read_func, write_func, send_timeout=5
     )
 
     tinyproto_transport.open()
@@ -162,7 +180,7 @@ def main(program: str):
     server = erpc.simple_server.SimpleServer(arbitrator, erpc.basic_codec.BasicCodec)
 
     server_thread = ServerThread(server, tinyproto_transport)
-    client_thread = ClientThread(client_manager, tinyproto_transport)
+    client_thread = ClientThread(client_manager, tinyproto_transport, repl)
 
     try:
         print("Starting server...")
@@ -187,5 +205,11 @@ def main(program: str):
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser(description="ESP32-eRPC demo")
     arg_parser.add_argument("program", help="The program to interact with via eRPC")
+    arg_parser.add_argument(
+        "--repl",
+        default=False,
+        action="store_true",
+        help="Interact with the program via REPL, instead of sending burst eRPC calls",
+    )
     args = arg_parser.parse_args()
-    main(args.program)
+    main(args.program, args.repl)
