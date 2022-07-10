@@ -166,7 +166,7 @@ erpc_status_t TinyprotoTransport::wait_connected(TickType_t timeout) {
 void TinyprotoTransport::rx_task(void *user_data) {
 	TinyprotoTransport *pthis = static_cast<TinyprotoTransport *>(user_data);
 	tiny_fd_handle_t handle = pthis->tinyproto_.getHandle();
-	uint8_t buf[4];
+	uint8_t buf[128];
 	while (xEventGroupGetBits(pthis->events_.handle) & EVENT_STATUS_OPENED) {
 		/*
 		 * We don't explicitly yield as we do in tx_task, since we expect the

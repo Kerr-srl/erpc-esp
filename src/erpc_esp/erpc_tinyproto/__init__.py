@@ -185,7 +185,13 @@ class TinyprotoTransport(erpc.transport.Transport):
 
         def run(self):
             while not self.stopped():
-                self.transport._proto.run_tx(self.transport._write_func)
+                # Get TX data
+                to_send = self.transport._proto.tx()
+                if len(to_send) > 0:
+                    # Send it
+                    self.transport._write_func(to_send)
+                # Yield thread
+                time.sleep(0.0001)
 
     def __init__(
         self,
