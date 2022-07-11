@@ -142,13 +142,13 @@ void vApplicationIdleHook(void) {
 static SemaphoreHandle_t printf_mutex;
 static int vprint_with_freertos_mutex(const char *str, va_list va) {
 	xSemaphoreTake(printf_mutex, portMAX_DELAY);
-	int ret = vprintf(str, va);
+	int ret = vfprintf(stderr, str, va);
 	xSemaphoreGive(printf_mutex);
 	return ret;
 }
 
 int main() {
-	erpc_esp_host_posix_io_init(&g_posix_io_stderr, STDERR_FILENO, true);
+	erpc_esp_host_posix_io_init(&g_posix_io_stderr, STDOUT_FILENO, true);
 	erpc_esp_host_posix_io_init(&g_posix_io_stdin, STDIN_FILENO, false);
 
 	printf_mutex = xSemaphoreCreateMutex();

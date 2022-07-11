@@ -7,18 +7,19 @@ Example of building an ESP-IDF app for the host platform.
 Check the documentation of the [erpc](../../erpc_esp/erpc/README.md) component.
 Check the documentation of the [erpc_tinyproto](../../erpc_esp/erpc_tinyproto/README.md) component.
 
-This example contains nothing specific to this repository, but having an example that shows that the components provided by this repository can be made to work also on the host is useful.
-
 This example works as follows:
 
 * The ESP-IDF application uses:
-    * stdout to print logs,
-    * stderr as channel to exchange eRPC data with the Python script.
-* The Python script then interacts with the ESP-IDF application and:
-    * sends eRPC data to stdin of the ESP-IDF application (via PIPE);
-    * receives eRPC data from stderr of the ESP-IDF application (via PIPE);
-    * uses stdout to print logs of the Python script itself;
-    * redirects stdout of the ESP-IDF application to its stderr, so that when necessary logs from the Python script and logs from the ESP-IDF application can be monitored separately.
+    * stdout as channel to exchange eRPC data with the Python script.
+    * stderr to print logs.
+* The Python script interacts with the ESP-IDF application by:
+    * sending eRPC data to stdin of the ESP-IDF application (via PIPE);
+    * receiving eRPC data from stdout of the ESP-IDF application (via PIPE);
+    * using stdout to print logs of the Python script itself;
+    * redirecting stderr of the ESP-IDF application to its own stderr, so that when necessary logs from the Python script and logs from the ESP-IDF application can be monitored separately.
+* Note that choosing stderr on the ESP-IDF application to print logs is intentional. There are two reasons:
+    * `assert()` abortions in C are communicated via stderr. We want to see those too.
+    * If we want to monitor separately the ESP-IDF application's logs and the ones from the Python script, the easiest way is to redirect the stderr of the Python script (to which the stderr of the ESP-IDF application is redirected) to a file, as shown below. However, if we used stdout for ESP-IDF application's logs, then redirecting it to a file (i.e. redirecting the Python script's stderr, to which the stdout of the ESP-IDF application would be redirected, to a file) would result in seeing buffered logs, but most of the times we want to see logs in realtime.
 
 ```bash
 # Build the project

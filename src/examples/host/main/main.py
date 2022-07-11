@@ -142,8 +142,8 @@ def main(program: str, repl: bool):
         # Unbuffered pipe
         bufsize=0,
         stdin=PIPE,
-        stdout=sys.stderr,
-        stderr=PIPE,
+        stdout=PIPE,
+        stderr=sys.stderr,
     )
 
     def write_func(data: bytearray):
@@ -156,7 +156,7 @@ def main(program: str, repl: bool):
         return written
 
     def read_func(max_count):
-        data = _assert_not_none(esp_app.stderr).read(max_count)
+        data = _assert_not_none(esp_app.stdout).read(max_count)
         return data
 
     # Create shared transport
