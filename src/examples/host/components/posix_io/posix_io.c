@@ -168,6 +168,28 @@ void erpc_esp_host_posix_io_init(erpc_esp_host_posix_io *handle, int fd,
 	ret = pthread_cond_init(&handle->cond, NULL);
 	assert(ret == 0);
 
+	/**
+	 * Initialize FreeRTOS objects before masking signals and creating pthread.
+	 * FreeRTOS objects' initialization functions may enter and exit in critical
+	 * section, which on the POSIX port basically means: mask signals and unmask
+	 * them.
+	 * So, if we did something like: 1. mask signals; 2. init freertos
+	 * object; 3. create pthread.
+	 * At step 3 we may have signals unmasked, which is not what we want.
+	 */
+	if (read_or_write) {
+		handle->io.tx.fifo.handle = xStreamBufferCreateStatic(
+			sizeof(handle->io.tx.fifo.data_buffer), 1,
+			handle->io.tx.fifo.data_buffer, &handle->io.tx.fifo.buf);
+		assert(handle->io.tx.fifo.handle);
+	} else {
+		// set as non-blocking
+		fcntl(handle->fd, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
+		handle->io.rx.sem.handle =
+			xSemaphoreCreateBinaryStatic(&handle->io.rx.sem.buf);
+		assert(handle->io.rx.sem.handle);
+	}
+
 	pthread_t tid;
 	/*
 	 * Create the independent pthreads with all the signals masked,
@@ -177,24 +199,11 @@ void erpc_esp_host_posix_io_init(erpc_esp_host_posix_io *handle, int fd,
 	sigfillset(&set);
 	sigset_t old;
 	pthread_sigmask(SIG_SETMASK, &set, &old);
-
 	if (read_or_write) {
-		handle->io.tx.fifo.handle = xStreamBufferCreateStatic(
-			sizeof(handle->io.tx.fifo.data_buffer), 1,
-			handle->io.tx.fifo.data_buffer, &handle->io.tx.fifo.buf);
-		assert(handle->io.tx.fifo.handle);
-
 		pthread_create(&tid, NULL, writer, handle);
 	} else {
-		// set as non-blocking
-		fcntl(handle->fd, F_SETFL, fcntl(0, F_GETFL) | O_NONBLOCK);
-		handle->io.rx.sem.handle =
-			xSemaphoreCreateBinaryStatic(&handle->io.rx.sem.buf);
-		assert(handle->io.rx.sem.handle);
-
 		pthread_create(&tid, NULL, reader, handle);
 	}
-
 	/*
 	 * Restore signal mask of this thread
 	 */
