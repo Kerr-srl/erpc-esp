@@ -95,7 +95,21 @@ static int tinyproto_write_fn(void *pdata, const void *buffer, int size) {
 	return size;
 }
 static int tinyproto_read_fn(void *pdata, void *buffer, int size) {
-	return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, 1,
+	size_t buffered_len = 0;
+	ESP_ERROR_CHECK(
+		uart_get_buffered_data_len(CONFIG_ESP_CONSOLE_UART_NUM, &buffered_len));
+	/*
+	 * By default wait on 1 byte, so that we unblock as soon as possible.
+	 * If there is already something in the RX buffer, extract as much
+	 * as possible from the buffer, instead of doing a lot of 1-byte reads.
+	 */
+	size_t wait_len = 1;
+	if (buffered_len >= size) {
+		wait_len = size;
+	} else if (buffered_len > 1) {
+		wait_len = buffered_len;
+	}
+	return uart_read_bytes(CONFIG_ESP_CONSOLE_UART_NUM, buffer, wait_len,
 						   pdMS_TO_TICKS(5));
 }
 
