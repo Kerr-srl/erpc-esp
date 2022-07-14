@@ -163,6 +163,7 @@ class _EventFlags(IntFlag):
     OPENED = auto()
     CONNECTED = auto()
     NEW_FRAME_RX_PENDING = auto()
+    NEW_DISCONNECTION_EVENT_PENDING = auto()
 
 
 class TinyprotoTransport(erpc.transport.Transport):
@@ -241,6 +242,7 @@ class TinyprotoTransport(erpc.transport.Transport):
                 # Reset protocol on disconnection
                 # self._proto.begin()
                 self._event_flags.clear_bits(_EventFlags.CONNECTED)
+                self._event_flags.set_bits(_EventFlags.NEW_DISCONNECTION_EVENT_PENDING)
 
         self._proto.on_read = on_read
         self._proto.on_connect_event = on_connect_event
@@ -266,6 +268,12 @@ class TinyprotoTransport(erpc.transport.Transport):
         """
         Wait connection to be established
 
+        NOTE that when tinyproto is already connected, calling this
+        would immediately return, but it is not always true that the
+        connection is still on. Disconnection detection takes a while,
+        depending on the keep alive timeout.
+        Check also wait_disconnection
+
         :param timeout connection timeout in seconds.
         """
         assert self._event_flags.get_bits() & _EventFlags.OPENED
@@ -277,6 +285,26 @@ class TinyprotoTransport(erpc.transport.Transport):
             raise TinyprotoClosedError("Connection failed")
         elif (event_flags & _EventFlags.CONNECTED) == 0:
             raise TinyprotoTimeoutError("Connection failed")
+
+    def wait_disconnection(self, timeout: float = None):
+        """
+        Wait for disconnection to happen.
+
+        :param timeout timeout in seconds.
+        """
+        assert self._event_flags.get_bits() & _EventFlags.OPENED
+
+        event_flags = self._event_flags.wait_bits(
+            _EventFlags.NEW_DISCONNECTION_EVENT_PENDING,
+            _EventFlags.OPENED,
+            timeout=timeout,
+            # Clear new disconnection event pending
+            op=lambda flags: flags & ~(_EventFlags.NEW_DISCONNECTION_EVENT_PENDING),
+        )
+        if (event_flags & _EventFlags.OPENED) == 0:
+            raise TinyprotoClosedError("Connection closed")
+        elif (event_flags & _EventFlags.NEW_DISCONNECTION_EVENT_PENDING) == 0:
+            raise TinyprotoTimeoutError("Disconnection didn't happen")
 
     def disconnect(self):
         self._proto.disconnect()

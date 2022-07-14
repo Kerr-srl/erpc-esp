@@ -176,6 +176,12 @@ def main(port: str, baudrate: int, reset: bool, print_logs: bool):
     # Create server that uses the shared transport
     server = erpc.simple_server.SimpleServer(arbitrator, erpc.basic_codec.BasicCodec)
 
+    client = target.client.hello_world_targetClient(client_manager)
+    tinyproto_transport.wait_connected()
+    client.reset_target()
+    tinyproto_transport.wait_disconnection()
+    tinyproto_transport.wait_connected()
+
     server_thread = ServerThread(server, tinyproto_transport)
     client_thread = ClientThread(client_manager, tinyproto_transport)
 
@@ -209,7 +215,7 @@ if __name__ == "__main__":
         "--reset",
         default=False,
         action="store_true",
-        help="Whether to reset the ESP32 target. Should not be used when using a virtual serial port (e.g. created using socat)",
+        help='Whether to "hard" reset the ESP32 target. Should not be used when using a virtual serial port (e.g. created using socat)',
     )
     arg_parser.add_argument(
         "--print-logs",

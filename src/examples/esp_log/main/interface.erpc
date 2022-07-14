@@ -5,6 +5,7 @@ program hello_world_with_esp_log
  */
 @group(target)
 interface hello_world_target {
+    oneway reset_target()
     oneway say_hello_to_target(string name, uint32 i)
 }
 

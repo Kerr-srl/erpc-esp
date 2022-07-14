@@ -15,6 +15,8 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
+#include "esp_system.h"
+
 #include "esp_log.h"
 #define TAG "main"
 
@@ -38,6 +40,10 @@
 
 void say_hello_to_target(const char *name, uint32_t ith) {
 	ESP_LOGI(TAG, "Received [%u]th call from host.", ith);
+}
+
+void reset_target() {
+	esp_restart();
 }
 
 static EventGroupHandle_t g_event_flag;
