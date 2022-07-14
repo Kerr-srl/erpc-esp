@@ -7,11 +7,20 @@
  */
 #include "erpc_esp_log.h"
 
+/**
+ * Side step logging level configuration. We always want eRPC output to be
+ * logged
+ */
+#define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
 #define TAG "erpc"
 
 #include <assert.h>
 #include <stdio.h>
+
+void erpc_esp_log_transport_init(void) {
+	esp_log_level_set(TAG, LOG_LOCAL_LEVEL);
+}
 
 void erpc_esp_log_transport_send(const uint8_t *data, uint32_t size,
 								 char *buffer) {
@@ -19,5 +28,6 @@ void erpc_esp_log_transport_send(const uint8_t *data, uint32_t size,
 		sprintf(buffer + (i * 2), "%02x", data[i]);
 	}
 	buffer[(size * 2)] = '\0';
-	ESP_LOGI(TAG, "[%s]", buffer);
+
+	ESP_LOGV(TAG, "[%s]", buffer);
 }

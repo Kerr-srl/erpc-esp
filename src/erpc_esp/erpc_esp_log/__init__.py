@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 
-ERPC_LOG_PATTERN = re.compile(r"I\s\(\d+\)\serpc:\s\[([0-9a-fA-F]+)\]")
+ERPC_LOG_PATTERN = re.compile(r"[EWIDV]\s\(\d+\)\serpc:\s\[([0-9a-fA-F]+)\]")
 
 
 class ErpcEspLogFilter(object):

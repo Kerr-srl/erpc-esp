@@ -107,6 +107,8 @@ static uint8_t g_tinyproto_rx_buffer[1024];
 void app_main() {
 	ESP_LOGI(TAG, "Target started");
 
+	erpc_esp_log_transport_init();
+
 	g_event_flag = xEventGroupCreate();
 	assert(g_event_flag);
 

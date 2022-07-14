@@ -22,6 +22,11 @@ extern "C" {
 	(((size_t)_input_len_ * 2u) + 1u)
 
 /**
+ * Call this function before using #erpc_esp_log_transport_send
+ */
+void erpc_esp_log_transport_init(void);
+
+/**
  * Send using esp log
  *
  * \param [in] data bytes to be sent
