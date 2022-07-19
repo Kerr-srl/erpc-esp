@@ -8,8 +8,8 @@
 #include "erpc_esp_log.h"
 
 /**
- * Side step logging level configuration. We always want eRPC output to be
- * logged
+ * Side step build time logging level configuration. We always want eRPC output
+ * to be logged.
  */
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #include "esp_log.h"
@@ -29,5 +29,10 @@ void erpc_esp_log_transport_send(const uint8_t *data, uint32_t size,
 	}
 	buffer[(size * 2)] = '\0';
 
-	ESP_LOGV(TAG, "[%s]", buffer);
+	/*
+	 * We already sidestepped the build time logging level configuration.
+	 * But `esp_log_level_set` could still disable the log.
+	 * We mitigate the problem by using the highest logging level.
+	 */
+	ESP_LOGE(TAG, "[%s]", buffer);
 }
