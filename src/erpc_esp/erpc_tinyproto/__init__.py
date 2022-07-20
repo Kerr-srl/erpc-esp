@@ -79,8 +79,10 @@ class EventFlags(object):
         """
         Wait on bits in the event flags value to assume a certain value
 
-        :param set IntFlag: bitflags to be waited to be set
-        :param cleared IntFlag: bitflags to be waited to be cleared
+        :param set IntFlag: bitflags to be waited to be set. Pass IntFlag(0) to
+        not wait on any bit setting event.
+        :param cleared IntFlag: bitflags to be waited to be cleared. Pass
+        IntFlag(0) to not wait on any bit clearing event.
         :param all_set bool: if true, wait for all the bitflags specified
          in``set`` to be set
         :param all_cleared bool: if true, wait for all the bitflags specified
@@ -100,16 +102,17 @@ class EventFlags(object):
             set_bits = self._event_flags & set
             cleared_bits = (~self._event_flags) & cleared
             set_satisfied = False
-            if all_set:
-                set_satisfied = set_bits == set
-            else:
-                set_satisfied = set_bits >= min(set, 1)
+            if set != 0:
+                if all_set:
+                    set_satisfied = set == set_bits
+                else:
+                    set_satisfied = set_bits >= set
             clear_satisfied = False
-            if all_cleared:
-                clear_satisfied = cleared_bits == cleared
-            else:
-                clear_satisfied = cleared_bits >= min(cleared, 1)
-
+            if cleared != 0:
+                if all_cleared:
+                    clear_satisfied = cleared == cleared_bits
+                else:
+                    clear_satisfied = cleared_bits >= cleared
             if clear_and_set:
                 return set_satisfied and clear_satisfied
             else:
@@ -163,6 +166,7 @@ class _EventFlags(IntFlag):
     OPENED = auto()
     CONNECTED = auto()
     NEW_FRAME_RX_PENDING = auto()
+    POSSIBLE_NEW_TX_PENDING = auto()
     NEW_DISCONNECTION_EVENT_PENDING = auto()
 
 
@@ -177,7 +181,13 @@ class TinyprotoTransport(erpc.transport.Transport):
         def run(self):
             while not self.stopped():
                 read_bytes = self.transport._read_func(2048)
-                self.transport._proto.rx(read_bytes)
+                if len(read_bytes) > 0:
+                    self.transport._proto.rx(read_bytes)
+                    # Something was received. Potentially there is need to send
+                    # ACK.
+                    self.transport._event_flags.set_bits(
+                        _EventFlags.POSSIBLE_NEW_TX_PENDING
+                    )
 
     class TxThread(StoppableThread):
         def __init__(self, transport: "TinyprotoTransport", *args, **kwargs):
@@ -191,8 +201,26 @@ class TinyprotoTransport(erpc.transport.Transport):
                 if len(to_send) > 0:
                     # Send it
                     self.transport._write_func(to_send)
-                # Yield thread
-                time.sleep(0.0001)
+                    # Yield. Don't starve other threads.
+                    time.sleep(0.0001)
+                else:
+                    # When there is nothing to send, wait on this event flag
+                    # until there's something else to send. Don't just busy
+                    # loop, which could lead to starvation of other threads.
+                    self.transport._event_flags.wait_bits(
+                        _EventFlags.POSSIBLE_NEW_TX_PENDING,
+                        IntFlag(0),
+                        # But we also want to wake up from time to time
+                        # because:
+                        # * we need to check whether the thread should be
+                        # stopped;
+                        # * TinyProto may need to send something on its own
+                        # (e.g. some periodc keep alive frames), which are not
+                        # handled by the POSSIBLE_NEW_TX_PENDING flag.
+                        timeout=0.01,
+                        # Clear on exit
+                        op=lambda flags: flags & ~(_EventFlags.POSSIBLE_NEW_TX_PENDING),
+                    )
 
     def __init__(
         self,
@@ -337,6 +365,10 @@ class TinyprotoTransport(erpc.transport.Transport):
                 raise TinyprotoRecoverableError("Data too large")
             else:
                 assert False
+        else:
+            # Successfully queued some data to be sent. Unblock the TX thread
+            # immediately, if it is waiting for new TX data.
+            self._event_flags.set_bits(_EventFlags.POSSIBLE_NEW_TX_PENDING)
 
     def receive(self):
         if self._rx_fifo.qsize() > 0:
