@@ -95,6 +95,7 @@ TinyprotoTransport::TinyprotoTransport(
 	this->tinyproto_.setReceiveCallback(TinyprotoTransport::receive_cb);
 	this->tinyproto_.setUserData(this);
 	this->tinyproto_.setSendTimeout(this->config_.send_timeout);
+	this->tinyproto_.setWindowSize(7);
 
 	// This is the default used by the Python binding
 	this->tinyproto_.enableCrc16();
