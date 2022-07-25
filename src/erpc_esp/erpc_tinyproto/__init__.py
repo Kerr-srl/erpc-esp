@@ -275,7 +275,12 @@ class TinyprotoTransport(erpc.transport.Transport):
         self._proto.on_read = on_read
         self._proto.on_connect_event = on_connect_event
 
-        self._proto.begin()
+        ret = self._proto.begin()
+        if ret != 0:
+            raise TinyprotoUnRecoverableError(
+                f"Unable to begin tinyproto. Error code {ret}"
+            )
+
         self._rx_thread.start()
         self._tx_thread.start()
 
