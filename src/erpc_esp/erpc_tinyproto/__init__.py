@@ -308,7 +308,7 @@ class TinyprotoTransport(erpc.transport.Transport):
         """
         Close the transport.
         """
-        self._event_flags.clear_bits(_EventFlags.OPENED)
+        self._event_flags.clear_bits(_EventFlags.OPENED | _EventFlags.CONNECTED)
         self._rx_thread.stop()
         self._tx_thread.stop()
         self._rx_thread.join()
@@ -407,10 +407,14 @@ class TinyprotoTransport(erpc.transport.Transport):
             # Clear new frame rx pending
             op=lambda flags: flags & ~(_EventFlags.NEW_FRAME_RX_PENDING),
         )
-        if (event_flags & _EventFlags.CONNECTED) == 0:
-            raise TinyprotoDisconnectedError("RX failure")
+
+        # If connection shutdown and disconnection happen at the same time,
+        # the TinyprotoClosedError error has higher priority
         if (event_flags & _EventFlags.OPENED) == 0:
             raise TinyprotoClosedError("RX failure")
+        if (event_flags & _EventFlags.CONNECTED) == 0:
+            raise TinyprotoDisconnectedError("RX failure")
+
         if event_flags & _EventFlags.NEW_FRAME_RX_PENDING:
             try:
                 return self._rx_fifo.get(block=False)
