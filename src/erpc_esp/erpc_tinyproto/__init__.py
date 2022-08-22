@@ -43,6 +43,9 @@ class TinyprotoClosedError(TinyprotoRecoverableError):
         super().__init__(f"TinyProto error: closed. {msg}", *args, **kwargs)
 
 
+_EventFlagsModify = Callable[[IntFlag], IntFlag]
+
+
 class EventFlags(object):
     def __init__(self):
         self._cond = threading.Condition()
@@ -54,7 +57,7 @@ class EventFlags(object):
         self._cond.release()
         return val
 
-    def update_bits(self, op: Callable[[IntFlag], IntFlag]):
+    def update_bits(self, op: _EventFlagsModify):
         self._cond.acquire()
         self._event_flags = op(self._event_flags)
         self._cond.notify_all()
@@ -74,7 +77,7 @@ class EventFlags(object):
         all_cleared: bool = False,
         clear_and_set: bool = False,
         timeout=None,
-        op: Callable[[IntFlag], IntFlag] = None,
+        op: _EventFlagsModify = None,
     ) -> IntFlag:
         """
         Wait on bits in the event flags value to assume a certain value
@@ -89,8 +92,10 @@ class EventFlags(object):
          in``cleared`` to be cleared
         :param clear_and_set bool: if true, the event flags value must pass
          both the conditions of set bits and cleared bits.
+         Default to False, which means that if either `set` or `cleared` is
+         IntFlag(0), this function will immediately return.
         :param timeout float: Optional timeout
-        :param op Callable[[IntFlag], IntFlag]: Manipulate the event flags
+        :param op _Op: Manipulate the event flags
          value right after the wait is unblocked. If wait is unblocked due to
          timeout, this function is not called.
         :rtype IntFlag: the new event flags that caused the wait to be
@@ -101,18 +106,18 @@ class EventFlags(object):
         def predicate():
             set_bits = self._event_flags & set
             cleared_bits = (~self._event_flags) & cleared
-            set_satisfied = False
+            set_satisfied = True
             if set != 0:
                 if all_set:
                     set_satisfied = set == set_bits
                 else:
-                    set_satisfied = set_bits >= set
-            clear_satisfied = False
+                    set_satisfied = set_bits != 0
+            clear_satisfied = True
             if cleared != 0:
                 if all_cleared:
                     clear_satisfied = cleared == cleared_bits
                 else:
-                    clear_satisfied = cleared_bits >= cleared
+                    clear_satisfied = cleared_bits != 0
             if clear_and_set:
                 return set_satisfied and clear_satisfied
             else:
@@ -126,7 +131,13 @@ class EventFlags(object):
         self._cond.release()
         return val
 
-    def wait_bits_set(self, set: IntFlag, all_set: bool = False, timeout=None):
+    def wait_bits_set(
+        self,
+        set: IntFlag,
+        all_set: bool = False,
+        timeout=None,
+        op: _EventFlagsModify = None,
+    ):
         return self.wait_bits(
             set,
             IntFlag(0),
@@ -134,9 +145,16 @@ class EventFlags(object):
             # Cleared bits condition will always be true
             clear_and_set=True,
             timeout=timeout,
+            op=op,
         )
 
-    def wait_bits_cleared(self, cleared: IntFlag, all_cleared: bool, timeout=None):
+    def wait_bits_cleared(
+        self,
+        cleared: IntFlag,
+        all_cleared: bool,
+        timeout=None,
+        op: _EventFlagsModify = None,
+    ):
         return self.wait_bits(
             IntFlag(0),
             cleared,
@@ -144,6 +162,7 @@ class EventFlags(object):
             # Set bits condition will always be true
             clear_and_set=True,
             timeout=timeout,
+            op=op,
         )
 
 
@@ -207,9 +226,8 @@ class TinyprotoTransport(erpc.transport.Transport):
                     # When there is nothing to send, wait on this event flag
                     # until there's something else to send. Don't just busy
                     # loop, which could lead to starvation of other threads.
-                    self.transport._event_flags.wait_bits(
+                    self.transport._event_flags.wait_bits_set(
                         _EventFlags.POSSIBLE_NEW_TX_PENDING,
-                        IntFlag(0),
                         # But we also want to wake up from time to time
                         # because:
                         # * we need to check whether the thread should be
