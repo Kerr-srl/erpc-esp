@@ -130,7 +130,7 @@ static void *reader(void *arg) {
 		}
 		ret = read(handle->fd, handle->io.rx.pending.buffer,
 				   handle->io.rx.pending.buffer_max_size);
-		assert(ret > 0);
+		assert(ret >= 0);
 
 		handle->io.rx.pending.actually_read_size = ret;
 		// clear pending status
