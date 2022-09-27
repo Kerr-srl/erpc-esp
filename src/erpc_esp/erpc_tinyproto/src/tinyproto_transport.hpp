@@ -44,7 +44,7 @@ class TinyprotoTransport : public Transport {
 	/*!
 	 * @brief Constructor.
 	 *
-	 * @param [in] buffer Tinyproto port
+	 * @param [in] buffer Tinyproto communication buffer
 	 * @param [in] buffer_size
 	 * @param [in] write_func low level write function
 	 * @param [in] read_func low level read function

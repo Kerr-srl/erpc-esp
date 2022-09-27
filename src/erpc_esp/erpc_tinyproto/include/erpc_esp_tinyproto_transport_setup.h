@@ -65,7 +65,8 @@ struct erpc_esp_transport_tinyproto_config {
 /*!
  * @brief Create an ESP-IDF Tinyproto transport.
  *
- * @param [in] buffer Tinyproto reception buffer
+ * @param [in] buffer Tinyproto full-duplex IO buffer (used for queueing both
+ * TX and RX data)
  * @param [in] buffer_size size of the buffer
  * @param [in] write_func low level write function
  * @param [in] read_func low level read function
