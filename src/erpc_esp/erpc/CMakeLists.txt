@@ -6,7 +6,7 @@ if(target STREQUAL "linux")
     set(PTHREAD_COMPONENT "")
 endif()
 
-idf_component_register(REQUIRES ${PTHREAD_COMPONENT} ${target})
+idf_component_register(REQUIRES ${PTHREAD_COMPONENT} erpc_esp_target)
 
 set(ERPC_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../external/erpc)
 execute_process(COMMAND git submodule update --init --progress ${ERPC_DIR}

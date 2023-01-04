@@ -1,5 +1,3 @@
-idf_build_get_property(target IDF_TARGET)
-
 idf_component_register(
     SRCS
     "erpc_esp_log.c"
@@ -7,6 +5,6 @@ idf_component_register(
     erpc
     PRIV_REQUIRES
     log
-    ${target}
+    erpc_esp_target
     INCLUDE_DIRS
     include)
