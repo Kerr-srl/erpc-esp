@@ -156,7 +156,16 @@ class TinyprotoTransport : public Transport {
 	struct {
 		StaticMessageBuffer_t buf;
 		MessageBufferHandle_t handle;
-		uint8_t buffer[256];
+		/**
+		 * This value bottlenecks the max eRPC message size.
+		 *
+		 * TODO: We should implement TinyprotoTransport as FramedTransport and
+		 * use a StreamBuffer instead.
+		 *
+		 * For now just hard-code a reasonably big value, which suffices my
+		 * needs.
+		 */
+		uint8_t buffer[2048 + 256];
 	} rx_fifo_;
 	struct {
 		StaticEventGroup_t buf;
