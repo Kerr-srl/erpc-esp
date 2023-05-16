@@ -261,3 +261,4 @@ build/
 gen/
 # clangd cache directory
 .cache
+.clangd
