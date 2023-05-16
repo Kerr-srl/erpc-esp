@@ -154,7 +154,7 @@ def main(port: str, baudrate: int, reset: bool, print_logs: bool):
                 assert len(received) <= max_count
                 return received
             elif print_logs and len(data) > 0:
-                print(data.decode("utf-8", errors="ignore"), end="", file=sys.stderr)
+                print(data.decode("utf-8", errors="ignore"), end="", file=sys.stderr, flush=True)
 
     # Create shared transport
     tinyproto_transport = erpc_tinyproto.TinyprotoTransport(
@@ -221,7 +221,7 @@ if __name__ == "__main__":
         "--print-logs",
         default=False,
         action="store_true",
-        help="Whether to print ESP-IDF logs",
+        help="Whether to print ESP-IDF logs to stderr",
     )
     args = arg_parser.parse_args()
     main(args.port, args.bd, args.reset, args.print_logs)
