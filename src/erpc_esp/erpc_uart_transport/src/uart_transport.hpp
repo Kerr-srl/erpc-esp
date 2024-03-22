@@ -16,7 +16,7 @@
 #ifndef ERPC_ESP_UART_TRANSPORT_HPP_H_
 #define ERPC_ESP_UART_TRANSPORT_HPP_H_
 
-#include "erpc_framed_transport.h"
+#include "erpc_framed_transport.hpp"
 
 #include "driver/uart.h"
 

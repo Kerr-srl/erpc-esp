@@ -18,7 +18,7 @@
 
 #include "erpc_generic_transport_setup.h"
 
-#include "erpc_framed_transport.h"
+#include "erpc_framed_transport.hpp"
 
 #include <string>
 

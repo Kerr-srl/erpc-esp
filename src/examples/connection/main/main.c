@@ -6,11 +6,11 @@
 #include "erpc_esp_tinyproto_transport_setup.h"
 
 #if HOST
-#	include "gen/hello_world_with_connection_host_server.h"
-#	include "gen/hello_world_with_connection_target.h"
+#include "gen/c_hello_world_with_connection_host_server.h"
+#include "gen/c_hello_world_with_connection_target_client.h"
 #else
-#	include "gen/hello_world_with_connection_host.h"
-#	include "gen/hello_world_with_connection_target_server.h"
+#include "gen/c_hello_world_with_connection_host_client.h"
+#include "gen/c_hello_world_with_connection_target_server.h"
 #endif
 
 #include "driver/gpio.h"
@@ -67,9 +67,10 @@ static EventGroupHandle_t g_event_flag;
 
 void server_task(void *params) {
 	ESP_LOGI(TAG, "Starting server");
+	erpc_server_t server = (erpc_server_t)params;
 	while (xEventGroupWaitBits(g_event_flag, CONNECTED_BIT, pdFALSE, pdTRUE,
 							   portMAX_DELAY)) {
-		erpc_status_t status = erpc_server_run();
+		erpc_status_t status = erpc_server_run(server);
 		ESP_LOGW(TAG, "Server terminated with status: %d. Re-starting server",
 				 status);
 	}
@@ -152,19 +153,25 @@ void app_main() {
 	ESP_LOGI(TAG, "Connection established");
 
 	erpc_mbf_t message_buffer_factory = erpc_mbf_static_init();
-	erpc_transport_t arbitrator =
-		erpc_arbitrated_client_init(transport, message_buffer_factory);
-	erpc_arbitrated_client_set_error_handler(client_error);
-
-	ESP_LOGD(TAG, "Initializing server");
-	erpc_server_init(arbitrator, message_buffer_factory);
+	erpc_transport_t arbitrator;
+	erpc_client_t client = erpc_arbitrated_client_init(
+		transport, message_buffer_factory, &arbitrator);
+	erpc_arbitrated_client_set_error_handler(client, client_error);
 #if HOST
-	erpc_add_service_to_server(create_hello_world_host_service());
+	inithello_world_target_client(client);
 #else
-	erpc_add_service_to_server(create_hello_world_target_service());
+	inithello_world_host_client(client);
 #endif
 
-	xTaskCreate(server_task, "server", 0x1000, NULL, SERVER_TASK_PRIORITY,
+	ESP_LOGD(TAG, "Initializing server");
+	erpc_server_t server = erpc_server_init(arbitrator, message_buffer_factory);
+#if HOST
+	erpc_add_service_to_server(server, create_hello_world_host_service());
+#else
+	erpc_add_service_to_server(server, create_hello_world_target_service());
+#endif
+
+	xTaskCreate(server_task, "server", 0x1000, server, SERVER_TASK_PRIORITY,
 				NULL);
 	xTaskCreate(client_task, "client", 0x1000, NULL, CLIENT_TASK_PRIORITY,
 				NULL);

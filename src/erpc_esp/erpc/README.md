@@ -2,14 +2,15 @@
 
 The `erpc` component is the core component provided by this repository. This component takes care of:
 
-* Including the relevant eRPC runtime library in CMake.
+* Including the relevant eRPC static library and making it available through CMake.
 * Ensuring that the required eRPC tools are installed.
 * Providing an applicable subset of eRPC compile time configurations through ESP-IDF's Kconfig interface.
+* Providing utility CMake functions, in [erpc_utils.cmake](./erpc_utils.cmake). E.g.:
+    * `erpc_add_idl_target`: takes care of automatically invoking `erpcgen` and exposing the generated sources as linkable CMake static library targets.
 
-Note that this repository contains [our fork of eRPC](https://github.com/Kerr-srl/erpc/tree/master) as submodule. The forked eRPC is what will be included in the build by this component.
-Our fork provides CMake integration. In particular check out the documentation of the `ERPCAddIDLTarget` CMake function in [FindERPC.cmake](https://github.com/Kerr-srl/erpc/blob/master/cmake/FindERPC.cmake).
+Note that this repository contains [eRPC](https://github.com/EmbeddedRPC/erpc) as submodule. The submodule points to the version of eRPC that we support.
 
-Since this repository is simply some utilities to make eRPC easier to use with ESP32, you obviously need also to consult the documentation of [eRPC](https://github.com/EmbeddedRPC/erpc).
+Since this repository is simply some utilities to make eRPC easier to use with ESP32, you obviously need to also consult the documentation of [eRPC](https://github.com/EmbeddedRPC/erpc).
 
 ## Dependencies
 

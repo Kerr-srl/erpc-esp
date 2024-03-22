@@ -6,19 +6,19 @@
 
 #include "erpc_generic_transport_setup.h"
 
-#include "gen/hello_world_with_socket_host.h"
-#include "gen/hello_world_with_socket_target_server.h"
+#include "gen/c_hello_world_with_socket_host_client.h"
+#include "gen/c_hello_world_with_socket_target_server.h"
 
 #include "esp_log.h"
 #define TAG "main"
 
-#include "driver/uart.h"
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
 #include "esp_wifi_default.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 
@@ -30,6 +30,7 @@
 #include "sdkconfig.h"
 
 #include <string.h>
+#include <assert.h>
 
 #define CONFIG_EXAMPLE_WIFI_SSID "myssid"
 #define CONFIG_EXAMPLE_WIFI_PASSWORD "mypassword"
@@ -48,8 +49,10 @@ char *say_hello_to_target(const char *name, uint32_t ith) {
 }
 
 void server_task(void *params) {
+	erpc_server_t server = (erpc_server_t)params;
+
 	ESP_LOGI(TAG, "Starting server");
-	erpc_status_t status = erpc_server_run();
+	erpc_status_t status = erpc_server_run(server);
 	ESP_LOGW(TAG, "Server terminated with status: %d", status);
 	vTaskDelete(NULL);
 }
@@ -72,7 +75,7 @@ static void client_error(erpc_status_t err, uint32_t functionID) {
 	}
 }
 
-static xSemaphoreHandle g_semph_got_ip_addr;
+static SemaphoreHandle_t g_semph_got_ip_addr;
 
 static void event_handler(void *arg, esp_event_base_t event_base,
 						  int32_t event_id, void *event_data) {
@@ -125,8 +128,10 @@ static void wifi_start(void) {
 			},
 	};
 
-    ESP_LOGI(TAG, "SSID: %s, %u", wifi_config.sta.ssid, strlen((const char*)wifi_config.sta.ssid));
-    ESP_LOGI(TAG, "Password: %s, %u", wifi_config.sta.password, strlen((const char*)wifi_config.sta.password));
+	ESP_LOGI(TAG, "SSID: %s, %zu", wifi_config.sta.ssid,
+			 strlen((const char *)wifi_config.sta.ssid));
+	ESP_LOGI(TAG, "Password: %s, %zu", wifi_config.sta.password,
+			 strlen((const char *)wifi_config.sta.password));
 
 	ESP_LOGI(TAG, "Connecting to %s...", wifi_config.sta.ssid);
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -212,14 +217,20 @@ void app_main() {
 	ESP_LOGI(TAG, "TCP transport created");
 
 	erpc_mbf_t message_buffer_factory = erpc_mbf_static_init();
-	erpc_transport_t arbitrator =
-		erpc_arbitrated_client_init(transport, message_buffer_factory);
-	erpc_arbitrated_client_set_error_handler(client_error);
+	erpc_transport_t arbitrator;
+	erpc_client_t client = erpc_arbitrated_client_init(
+		transport, message_buffer_factory, &arbitrator);
+	inithello_world_host_client(client);
+	erpc_arbitrated_client_set_error_handler(client, client_error);
 
 	ESP_LOGD(TAG, "Initializing server");
-	erpc_server_init(arbitrator, message_buffer_factory);
-	erpc_add_service_to_server(create_hello_world_target_service());
+	erpc_server_t server = erpc_server_init(arbitrator, message_buffer_factory);
+	erpc_add_service_to_server(server, create_hello_world_target_service());
 
-	xTaskCreate(server_task, "server", 0x1000, NULL, 1, NULL);
+	xTaskCreate(server_task, "server", 0x1000, server, 1, NULL);
 	xTaskCreate(client_task, "client", 0x1000, NULL, 1, NULL);
+
+	while (1) {
+		vTaskDelay(portMAX_DELAY);
+	}
 }

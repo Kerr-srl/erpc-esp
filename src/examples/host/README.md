@@ -7,6 +7,8 @@ Example of building an ESP-IDF app for the host platform and using eRPC on host.
 Check the documentation of the [erpc](../../erpc_esp/erpc/README.md) component.
 Check the documentation of the [erpc_tinyproto](../../erpc_esp/erpc_tinyproto/README.md) component.
 
+NOTE that to run ESP-IDF applications on the host, additional system packages need to be installed. See https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/host-apps.html#requirements-for-using-mocks. In our experience `ruby` is required even if mocks are not used.
+
 This example works as follows:
 
 * The ESP-IDF application uses:
@@ -48,7 +50,7 @@ $ tail -f firmware.log
 ### FreeRTOS Linux simulator pitfalls
 
 * Check out the implementation details of the [FreeRTOS Linux simulator](https://www.freertos.org/FreeRTOS-simulator-for-Linux.html).
-* One gist of this documentation article is that in a program that uses FreeRTOS Linux simulator we sort of have two separate concurrency worlds: the underlying pthreads created via FreeRTOS (`xTaskCreate`), whose scheduling is managed by FreeRTOS and normal pthreads, which FreeRTOS is not aware of and can be used to simulate interrupts.
+* One gist of this documentation article is that in a program that uses FreeRTOS Linux simulator we sort of have two separate concurrency worlds: the underlying pthreads created via FreeRTOS (`xTaskCreate`), whose scheduling is managed by FreeRTOS, and normal pthreads, which FreeRTOS is not aware of and can be used to simulate interrupts.
     * While normal pthreads can be used to simulate interrupts, we need to consider the fact that these two worlds execute concurrently, contrary to what is common on many single core MCUs, where, if the ISR is executing, we can be sure that the tasks are not executing.
     * Furthermore, we need to know that FreeRTOS POSIX simulator's critical section is implemented as simply masking all the signals. This is enough as a critical section mechanism *in the FreeRTOS world*. But e.g. entering in a critical section in a FreeRTOS task can't prevent a normal pthread from running.
     * Note that running normal FreeRTOS (not the Linux simulator) on a SMP processor actually poses the same problems.

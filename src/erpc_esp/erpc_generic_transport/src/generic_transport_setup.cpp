@@ -18,7 +18,7 @@
 
 #include "generic_transport.hpp"
 
-#include "erpc_manually_constructed.h"
+#include "erpc_manually_constructed.hpp"
 
 using namespace erpc;
 using namespace erpc::esp;

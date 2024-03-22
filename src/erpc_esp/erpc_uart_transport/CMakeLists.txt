@@ -5,6 +5,7 @@ idf_component_register(
     REQUIRES
     erpc
     erpc_esp_target
+    driver
     PRIV_REQUIRES
     log
     INCLUDE_DIRS

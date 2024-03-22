@@ -18,7 +18,7 @@
 
 #include "erpc_esp_tinyproto_transport_setup.h"
 
-#include "erpc_framed_transport.h"
+#include "erpc_framed_transport.hpp"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"

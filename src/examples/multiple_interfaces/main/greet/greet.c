@@ -1,4 +1,4 @@
-#include "gen/multi_interface_target_server.h"
+#include "gen/c_multi_interface_target_server.h"
 
 #include "erpc_port.h"
 

@@ -2,8 +2,8 @@
 
 #include "erpc_esp_tinyproto_transport_setup.h"
 
-#include "gen/hello_world_with_esp_log_host.h"
-#include "gen/hello_world_with_esp_log_target_server.h"
+#include "gen/c_hello_world_with_esp_log_host_client.h"
+#include "gen/c_hello_world_with_esp_log_target_server.h"
 
 #include "erpc_arbitrated_client_setup.h"
 #include "erpc_mbf_setup.h"
@@ -22,6 +22,7 @@
 
 #include "sdkconfig.h"
 
+#include <inttypes.h>
 #include <string.h>
 
 /**
@@ -39,7 +40,7 @@
 #define CONNECTED_BIT BIT0
 
 void say_hello_to_target(const char *name, uint32_t ith) {
-	ESP_LOGI(TAG, "Received [%u]th call from host.", ith);
+	ESP_LOGI(TAG, "Received [%" PRIu32 "]th call from host.", ith);
 }
 
 void reset_target() {
@@ -50,9 +51,10 @@ static EventGroupHandle_t g_event_flag;
 
 void server_task(void *params) {
 	ESP_LOGI(TAG, "Starting server");
+	erpc_server_t server = (erpc_server_t)params;
 	while (xEventGroupWaitBits(g_event_flag, CONNECTED_BIT, pdFALSE, pdTRUE,
 							   portMAX_DELAY)) {
-		erpc_status_t status = erpc_server_run();
+		erpc_status_t status = erpc_server_run(server);
 		ESP_LOGW(TAG, "Server terminated with status: %d. Re-starting server",
 				 status);
 	}
@@ -63,7 +65,7 @@ void client_task(void *params) {
 	uint32_t i = 0;
 	while (xEventGroupWaitBits(g_event_flag, CONNECTED_BIT, pdFALSE, pdTRUE,
 							   portMAX_DELAY)) {
-		ESP_LOGI(TAG, "Calling host the [%u]th time", i);
+		ESP_LOGI(TAG, "Calling host the [%" PRIu32 "]th time", i);
 		say_hello_to_host("ESP32 target", i);
 		++i;
 	}
@@ -145,16 +147,22 @@ void app_main() {
 	ESP_LOGI(TAG, "Connection established");
 
 	erpc_mbf_t message_buffer_factory = erpc_mbf_static_init();
-	erpc_transport_t arbitrator =
-		erpc_arbitrated_client_init(transport, message_buffer_factory);
-	erpc_arbitrated_client_set_error_handler(client_error);
+	erpc_transport_t arbitrator;
+	erpc_client_t client = erpc_arbitrated_client_init(
+		transport, message_buffer_factory, &arbitrator);
+	erpc_arbitrated_client_set_error_handler(client, client_error);
+	inithello_world_host_client(client);
 
 	ESP_LOGD(TAG, "Initializing server");
-	erpc_server_init(arbitrator, message_buffer_factory);
-	erpc_add_service_to_server(create_hello_world_target_service());
+	erpc_server_t server = erpc_server_init(arbitrator, message_buffer_factory);
+	erpc_add_service_to_server(server, create_hello_world_target_service());
 
-	xTaskCreate(server_task, "server", 0x1000, NULL, SERVER_TASK_PRIORITY,
+	xTaskCreate(server_task, "server", 0x1000, server, SERVER_TASK_PRIORITY,
 				NULL);
 	xTaskCreate(client_task, "client", 0x1000, NULL, CLIENT_TASK_PRIORITY,
 				NULL);
+
+	while (1) {
+		vTaskDelay(portMAX_DELAY);
+	}
 }
