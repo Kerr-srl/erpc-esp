@@ -15,8 +15,6 @@ list(
     # provide, which uses the POSIX port of FreeRTOS
     "${CMAKE_CURRENT_LIST_DIR}/components")
 
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-
 # The auto generated sdkconfig goes into the build directory
 set(SDKCONFIG ${CMAKE_BINARY_DIR}/sdkconfig)
 # The sdkconfig files that contain overrides of the default settings
@@ -30,4 +28,5 @@ list(APPEND EXTRA_COMPONENT_DIRS ${CMAKE_CURRENT_LIST_DIR}/../../erpc_esp/
 
 set(COMPONENTS main)
 
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(host)

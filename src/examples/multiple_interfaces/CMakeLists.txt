@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.5)
 set(EXTRA_COMPONENT_DIRS
 	${CMAKE_SOURCE_DIR}/src
 	)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # The auto generated sdkconfig goes into the build directory
 set(SDKCONFIG ${CMAKE_BINARY_DIR}/sdkconfig)
@@ -16,4 +15,6 @@ set(EXTRA_COMPONENT_DIRS
 	)
 
 set(COMPONENTS main esptool_py)
+
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(multiple_interface)
