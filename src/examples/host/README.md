@@ -1,6 +1,6 @@
 # Host ESP-IDF app
 
-Example of building an ESP-IDF app for the host platform.
+Example of building an ESP-IDF app for the host platform and using eRPC on host.
 
 ## Usage
 
